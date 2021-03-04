@@ -1,7 +1,7 @@
 
 # Plotting the results at the stationary equilibrium
 
-function PlotResults(para,grids,pol_val_functions,Φ)
+function PlotResults(grids,pol_val_functions,Φ)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
@@ -31,35 +31,73 @@ function PlotResults(para,grids,pol_val_functions,Φ)
     end
     statestogrid=[statestogrid_E;statestogrid_U]
 
-    #plot(pol_μ_U[1:n_a])
-    #for state in 2:n_s*n_i
-    #    plot!(pol_μ_U[(state-1)*n_a+1:state*n_a])
-    #end
+    #---------------------------------------------------------------------------
+    # 1) Compute the policy functions of submarket choice of the unemployed
+    #---------------------------------------------------------------------------
 
-    plot(pol_μ_U[1:n_a])
-    plot!(pol_μ_U[n_a+1:2*n_a])
-    plot!(pol_μ_U[2*n_a+1:3*n_a])
-    plot!(pol_μ_U[3*n_a+1:4*n_a])
-
-    μ_a=zeros(n_a)
-    for a_i in 1:n_a
-        μ_a[a_i]=Φ[(a_i-1)*n_μ+1:a_i*n_μ]'*grid_μ[statestogrid[(a_i-1)*n_μ+1:a_i*n_μ,5]]/sum(Φ[(a_i-1)*n_μ+1:a_i*n_μ])
+    myplot=plot(pol_μ_U[1:n_a])
+    for state in 2:n_s*n_i
+        myplot=plot!(pol_μ_U[(state-1)*n_a+1:state*n_a])
     end
 
-    plot(μ_a)
+    #---------------------------------------------------------------------------
+    # 2) Compute the distribution of people of different wealth by submarket
+    #---------------------------------------------------------------------------
 
-    μ_a2=zeros(n_a)
-    for a_i in 1:n_a
-        μ_a2[a_i]=Φ[n_a*n_μ+(a_i-1)*n_μ+1:n_a*n_μ+a_i*n_μ]'*grid_μ[statestogrid[n_a*n_μ+(a_i-1)*n_μ+1:n_a*n_μ+a_i*n_μ,5]]/sum(Φ[n_a*n_μ+(a_i-1)*n_μ+1:n_a*n_μ+a_i*n_μ])
+    μ_dist=zeros(n_a,n_i*n_s)
+    for i_i in 1:n_i
+        for s_i in 1:n_s
+            for a_i in 1:n_a
+                ind1=[i_i-1,s_i-1,a_i-1,1]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                indend=[i_i-1,s_i-1,a_i-1,n_μ]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                μ_dist[a_i,(i_i-1)*n_s+s_i]=Φ[ind1:indend]'*grid_μ[statestogrid[ind1:indend,5]]/sum(Φ[ind1:indend])
+            end
+        end
     end
 
-    plot!(μ_a2)
+
+    plot(μ_dist[:,1])
+    for state in 2:n_s*n_i
+        myplot2=plot!(μ_dist[:,state])
+    end
     yaxis!([0,1])
 
-    d_a=zeros(n_a)
-    for a_i in 1:n_a
-        d_a[a_i]=sum(Φ[(a_i-1)*n_μ+1:a_i*n_μ])
-    end
-    plot(d_a)
+    #---------------------------------------------------------------------------
+    # 3) Compute assortment in stationary equilibrium
+    #---------------------------------------------------------------------------
 
+    # a) mean wealth of workers in each sector
+    a_bar=zeros(n_i,n_s)
+    for i_i in 1:n_i
+        for s_i in 1:n_s
+            ind1=[i_i-1,s_i-1,1-1,1]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+            indend=[i_i-1,s_i-1,n_a-1,n_μ]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+            a_bar[i_i,s_i]=Φ[ind1:indend]'*kron([1:n_a],ones(n_μ,1))
+        end
+    end
+
+    # b) Percentage of people with given wealth on each sector/skill level
+    prob_is_a=zeros(n_a,n_i*n_s)
+    for a_i in 1:n_a
+        Total=0
+        for i_i in 1:n_i
+            for s_i in 1:n_s
+                ind1=[i_i-1,s_i-1,a_i-1,1]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                indend=[i_i-1,s_i-1,a_i-1,n_μ]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                prob_is_a[a_i,(i_i-1)*n_s+s_i]=sum(Φ[ind1:indend])
+                Total+=sum(Φ[ind1:indend])
+            end
+        end
+       prob_is_a[a_i,:]+=Prob_is_a[a_i,:]/Total
+    end
+
+
+
+    #---------------------------------------------------------------------------
+    # 4) Construct a wealth histogram
+    #---------------------------------------------------------------------------
+
+
+
+    return myplot1,myplot2,a_bar,prob_is_a
 end

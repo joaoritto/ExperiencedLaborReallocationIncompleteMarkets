@@ -1,7 +1,7 @@
 
 # Computing the stationary distribution
 
-function ComputeDistribution(para,grids,pol_val_functions)
+function ComputeDistribution(grids,pol_val_functions)
 
     p(θ)=min(m*θ^(1-ξ),1)
 
@@ -140,7 +140,7 @@ end
 
 # Computing aggregates in the stationary equilibrium
 
-function ComputeAggregates(para,grids,pol_val_functions,Φ,z)
+function ComputeAggregates(grids,pol_val_functions,Φ,z)
 
     p(θ)=min(m*θ^(1-ξ),1)
 
@@ -173,4 +173,40 @@ function ComputeAggregates(para,grids,pol_val_functions,Φ,z)
     Y=Y^(ν/(ν-1))
 
     return Y,E_I,E_E,U_I,U_E
+end
+
+function GeneralEquilibrium(grids)
+
+    I_old=[0.3,0.2]
+    E_old=[0.2,0.2]
+
+    function Y_CES(z,I,E)
+        Y=0
+        for i_i=1:n_i
+            Y+=(1/n_i)*(z[i_i]*I[i_i]^γ*E[i_i]^(1-γ))^((ν-1)/ν)
+        end
+        Y=Y^(ν/(ν-1))
+        return Y
+    end
+
+    Y=Y_CES(z,I_old,E_old)
+
+    wages(Y,z,i,e)=((1/n_i)*γ*Y^(1/ν)*z^(1-(1/ν))*i^(γ*(1-(1/ν))-1)*e^((1-γ)*(1-(1/ν))),
+                        (1/n_i)*(1-γ)*Y^(1/ν)*z^(1-(1/ν))*i^(γ*(1-(1/ν)))*e^((1-γ)*(1-(1/ν))-1))
+
+    w=zeros(n_i,n_s)
+    for i_i in 1:n_i
+        w[i_i,:]=wages(Y,z[i_i],I[i_i],E[i_i])
+    end
+
+    V_E,V_U,V_S,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids)
+
+    pol_val_functions=(V_E,V_U,V_S,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)
+
+    Φ=ComputeDistribution(grids,pol_val_functions)
+
+    Y,I,E,U_I,U_E=ComputeAggregates(grids,pol_val_functions,Φ,z)
+
+    error=sum((I-I_old).^2)+sum((E-E_old).^2)
+
 end

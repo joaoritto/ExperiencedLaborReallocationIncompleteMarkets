@@ -1,9 +1,8 @@
 
 # Workers' value function iteration
 
-function VFunctionIter(para,grids,θ;Vguess=false,tol=false)
+function VFunctionIter(grids,θ;Vguess=false,tol=false)
 
-    (β,σ,h,ρ,δ,α,w)=para
     (grid_i,grid_s,grid_a,grid_μ)=grids
     if tol==false
         ϵ=1e-5
@@ -38,12 +37,11 @@ function VFunctionIter(para,grids,θ;Vguess=false,tol=false)
     if Vguess==false
         V_E_old=zeros(nstates_E)
         V_U_old=zeros(nstates_U)
-        V_S_old=zeros(nstates_S)
         W_E_old=zeros(nstates_E)
         W_U_old=zeros(nstates_U)
         W_S_old=zeros(nstates_S)
     else
-        V_E_old,V_U_old,V_S_old,W_E_old,W_U_old,W_S_old=Vguess
+        V_E_old,V_U_old,W_E_old,W_U_old,W_S_old=Vguess
     end
 
     V_E_aux=zeros(n_a,nstates_E)
@@ -51,14 +49,12 @@ function VFunctionIter(para,grids,θ;Vguess=false,tol=false)
     V_S_aux=zeros(n_a,nstates_S)
     V_E=zeros(nstates_E)
     V_U=zeros(nstates_U)
-    V_S=zeros(nstates_S)
     W_E=zeros(nstates_E)
     W_U=zeros(nstates_U)
     W_S=zeros(nstates_S)
 
     pol_a_E=zeros(Int64,nstates_E)
     pol_a_U=zeros(Int64,nstates_U)
-    pol_a_S=zeros(Int64,nstates_S)
 
     pol_μ_U=zeros(Int64,nstates_U)
 
@@ -98,8 +94,16 @@ function VFunctionIter(para,grids,θ;Vguess=false,tol=false)
                         V_E_aux[a1_i,ind]=u((1+r)*grid_a[a_i]+grid_μ[μ_i]*wage-grid_a[a1_i])+β*((ρ-δ)*W_U_old[ind1_u]+δ*W_S_old[a1_i]+(1-ρ)*W_E_old[ind1_e])
                     end
                 end
+                if a1_i>1 && V_E_aux[a1_i,ind]<V_E_aux[a1_i-1,ind]
+                    V_E[ind]=V_E_aux[a1_i-1,ind]
+                    pol_a_E[ind]=a1_i-1
+                    break
+                elseif a1_i==n_a
+                    V_E[ind]=V_E_aux[a1_i,ind]
+                    pol_a_E[ind]=a1_i
+                end
             end
-            V_E[ind],pol_a_E[ind]=findmax(V_E_aux[:,ind])
+            #V_E[ind],pol_a_E[ind]=V_E_aux[a1_i-1,ind]
         end
 
         # 2) V_U
@@ -115,24 +119,18 @@ function VFunctionIter(para,grids,θ;Vguess=false,tol=false)
                     ind1=[i_i-1,s_i-1,a1_i]'*[n_s*n_a,n_a,1]
                     V_U_aux[a1_i,ind]=u((1+r)*grid_a[a_i]+b-grid_a[a1_i])+β*(W_U_old[ind1])
                 end
-            end
-            V_U[ind],pol_a_U[ind]=findmax(V_U_aux[:,ind])
-        end
-
-        # 3) V_S
-        for ind in eachindex(V_S)
-            a_i=statestogrid_S[ind,1]
-
-            for a1_i in 1:n_a
-                if (1+r)*grid_a[a_i]+b-grid_a[a1_i]<0
-                    V_S_aux[a1_i,ind]=-Inf
-                else
-                    ind1=a1_i
-                    V_S_aux[a1_i,ind]=u((1+r)*grid_a[a_i]+b-grid_a[a1_i])+β*(W_S_old[ind1])
+                if a1_i>1 && V_U_aux[a1_i,ind]<V_U_aux[a1_i-1,ind]
+                    V_U[ind]=V_U_aux[a1_i-1,ind]
+                    pol_a_U[ind]=a1_i-1
+                    break
+                elseif a1_i==n_a
+                    V_U[ind]=V_U_aux[a1_i,ind]
+                    pol_a_U[ind]=a1_i
                 end
             end
-            V_S[ind],pol_a_S[ind]=findmax(V_S_aux[:,ind])
+            #V_U[ind],pol_a_U[ind]=findmax(V_U_aux[:,ind])
         end
+
 
         # Now compute Ws
         # 1) W_E
@@ -143,12 +141,12 @@ function VFunctionIter(para,grids,θ;Vguess=false,tol=false)
             i_i=statestogrid_E[ind,1]
 
             W_E[ind]=σ_ϵ*log(exp(V_E[ind]/σ_ϵ)+exp(W_S_old[a_i]/σ_ϵ))
-            pol_σ_E[ind]=exp(V_E[ind]/σ_ϵ)/(exp(V_E[ind]/σ_ϵ)+exp(V_S[a_i]/σ_ϵ))
+            pol_σ_E[ind]=exp(V_E[ind]/σ_ϵ)/(exp(V_E[ind]/σ_ϵ)+exp(W_S_old[a_i]/σ_ϵ))
         end
 
         subiter=0
         error1=1000
-        while error1>ϵ
+        while error1>1e-4
             subiter+=1
             # 2) W_U
             for ind in eachindex(W_U)
@@ -165,7 +163,7 @@ function VFunctionIter(para,grids,θ;Vguess=false,tol=false)
                 V_high,pol_μ_U[ind]=findmax(Val_temp)
 
                 W_U[ind]=σ_ϵ*log(exp(V_high/σ_ϵ)+exp(W_S_old[a_i]/σ_ϵ))
-                pol_σ_U[ind]=exp(V_high/σ_ϵ)/(exp(V_high/σ_ϵ)+exp(V_S[a_i]/σ_ϵ))
+                pol_σ_U[ind]=exp(V_high/σ_ϵ)/(exp(V_high/σ_ϵ)+exp(W_S_old[a_i]/σ_ϵ))
             end
 
             # 3) W_S
@@ -192,14 +190,13 @@ function VFunctionIter(para,grids,θ;Vguess=false,tol=false)
     W_U,W_U_old=W_U_old,W_U
     W_S,W_S_old=W_S_old,W_S
 
-    return V_E,V_U,V_S,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U
+    return V_E,V_U,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U
 end
 
 # Firms' value function iteration
 
-function JFunctionIter(para,grids,policyfunctions_W; Jguess=false,tol=false)
+function JFunctionIter(grids,policyfunctions_W; Jguess=false,tol=false)
 
-    (β,σ,h,ρ,δ,α,w)=para
     (grid_i,grid_s,grid_a,grid_μ)=grids
     (pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U)=policyfunctions_W
     if tol==false
@@ -267,7 +264,7 @@ end
 
 # Iteration of firms and workers' value functions
 
-function ValueFunctions(para,grids;Guess=false)
+function ValueFunctions(grids;Guess=false)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
@@ -295,17 +292,13 @@ function ValueFunctions(para,grids;Guess=false)
         for ind in eachindex(θ)
             θ[ind]=q_inv(κ/J_old[ind])
         end
-        if iter==1
-            ϵ_V=1e-5
-        else
-            ϵ_V=1e-9
-        end
-        V_E,V_U,V_S,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIter(para,grids,θ,Vguess=Vfunctions,tol=ϵ_V)
+
+        V_E,V_U,V_S,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIter(grids,θ,Vguess=Vfunctions)
 
         policyfunctions=(pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U)
         Vfunctions=(V_E,V_U,V_S,W_E,W_U,W_S)
 
-        J=JFunctionIter(para,grids,policyfunctions,Jguess=J_old)
+        J=JFunctionIter(grids,policyfunctions,Jguess=J_old)
 
         error=maximum((J-J_old).^2)
         println("iter ",iter," in outward loop, error of ",error)
