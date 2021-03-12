@@ -5,7 +5,7 @@ function PlotResults(grids,pol_val_functions,Φ)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
-    (V_E,V_U,V_S,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+    (V_E,V_U,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 
     nstates=n_i*n_s*n_a*n_μ+n_i*n_s*n_a+n_a
     nsvars=5
@@ -56,11 +56,26 @@ function PlotResults(grids,pol_val_functions,Φ)
     end
 
 
-    plot(μ_dist[:,1])
+    myplot2=plot(μ_dist[:,1])
     for state in 2:n_s*n_i
         myplot2=plot!(μ_dist[:,state])
     end
     yaxis!([0,1])
+
+    # For each wealth level what is the mu distribution?
+    dist_μa=zeros(n_μ,n_a,n_i,n_s)
+    Dist_μa=zeros(n_μ,n_a,n_i,n_s)
+    for a_i in 1:n_a
+        for i_i in 1:n_i
+            for s_i in 1:n_s
+                ind0=[i_i-1,s_i-1,a_i-1,1]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                for μ_i in 1:n_μ
+                    ind=[i_i-1,s_i-1,a_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                    Dist_μa[μ_i,a_i,i_i,s_i]=sum(Φ[ind0:ind])
+                end
+            end
+        end
+    end
 
     #---------------------------------------------------------------------------
     # 3) Compute assortment in stationary equilibrium
@@ -68,11 +83,13 @@ function PlotResults(grids,pol_val_functions,Φ)
 
     # a) mean wealth of workers in each sector
     a_bar=zeros(n_i,n_s)
+    aux=zeros(Int64,n_μ*n_a,1)
     for i_i in 1:n_i
         for s_i in 1:n_s
             ind1=[i_i-1,s_i-1,1-1,1]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
             indend=[i_i-1,s_i-1,n_a-1,n_μ]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-            a_bar[i_i,s_i]=Φ[ind1:indend]'*kron([1:n_a],ones(n_μ,1))
+            aux[:]=kron(1:n_a,ones(n_μ,1))
+            a_bar[i_i,s_i]=sum(Φ[ind1:indend].*grid_a[aux])/sum(Φ[ind1:indend])
         end
     end
 
@@ -88,7 +105,7 @@ function PlotResults(grids,pol_val_functions,Φ)
                 Total+=sum(Φ[ind1:indend])
             end
         end
-       prob_is_a[a_i,:]+=Prob_is_a[a_i,:]/Total
+       prob_is_a[a_i,:]=prob_is_a[a_i,:]/Total
     end
 
 
@@ -97,7 +114,35 @@ function PlotResults(grids,pol_val_functions,Φ)
     # 4) Construct a wealth histogram
     #---------------------------------------------------------------------------
 
+    dist_a=zeros(n_a)
+    Dist_a=zeros(n_a)
+    for a_i in 1:n_a
+        for i_i in 1:n_i
+            for s_i in 1:n_s
+                ind1=[i_i-1,s_i-1,a_i-1,1]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                indend=[i_i-1,s_i-1,a_i-1,n_μ]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                dist_a[a_i]+=sum(Φ[ind1:indend])
+            end
+        end
+        for i_i in 1:n_i
+            for s_i in 1:n_s
+                ind=n_i*n_s*n_a*n_μ+[i_i-1,s_i-1,a_i]'*[n_s*n_a,n_a,1]
+                dist_a[a_i]+=sum(Φ[ind])
+            end
+        end
+        Dist_a[a_i]=sum(dist_a[1:a_i])
+    end
+
+    #---------------------------------------------------------------------------
+    # 5) Simulations
+    #---------------------------------------------------------------------------
+    # i) Worker with little income unemployed
 
 
-    return myplot1,myplot2,a_bar,prob_is_a
+    # ii) Worker with little wealth who is experienced in the better sector
+
+
+    # iii) Worker with little wealth who is experienced in the worse sector
+
+    return myplot,myplot2,a_bar,prob_is_a
 end

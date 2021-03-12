@@ -7,7 +7,7 @@ function ComputeDistribution(grids,pol_val_functions)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
-    (V_E,V_U,V_S,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+    (V_E,V_U,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 
     nstates=n_i*n_s*n_a*n_μ+n_i*n_s*n_a
     nsvars=5
@@ -93,8 +93,8 @@ function ComputeDistribution(grids,pol_val_functions)
 
             T2[ind,ind]=pol_σ_E[indE]
             for i1_i in 1:n_i
-                T2[ind,ind1_s_u[i1_i]]+=(1-pol_σ_E[indE])*(1/n_i)*(1-p(θ[[i1_i-1,1-1,a_i]'*[n_s*n_a,n_a,1]]))
-                T2[ind,ind1_s_e[i1_i]]+=(1-pol_σ_E[indE])*(1/n_i)*p(θ[[i1_i-1,1-1,a_i]'*[n_s*n_a,n_a,1]])
+                T2[ind,ind1_s_u[i1_i]]+=(1-pol_σ_E[indE])*(1/n_i)*(1-p(θ[ind1_s_e[i1_i]]))
+                T2[ind,ind1_s_e[i1_i]]+=(1-pol_σ_E[indE])*(1/n_i)*p(θ[ind1_s_e[i1_i]])
             end
 
         elseif e_i==2
@@ -115,11 +115,11 @@ function ComputeDistribution(grids,pol_val_functions)
             ind1_e=[i_i-1,s_i-1,a_i-1,pol_μ_U[indU]]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
 
 
-            T2[ind,ind1_u]=pol_σ_U[indU]*(1-p(θ[indU]))
-            T2[ind,ind1_e]=pol_σ_U[indU]*p(θ[indU])
+            T2[ind,ind1_u]=pol_σ_U[indU]*(1-p(θ[ind1_e]))
+            T2[ind,ind1_e]=pol_σ_U[indU]*p(θ[ind1_e])
             for i1_i in 1:n_i
-                T2[ind,ind1_s_u[i1_i]]+=(1-pol_σ_U[indU])*(1/n_i)*(1-p(θ[[i1_i-1,1-1,a_i]'*[n_s*n_a,n_a,1]]))
-                T2[ind,ind1_s_e[i1_i]]+=(1-pol_σ_U[indU])*(1/n_i)*p(θ[[i1_i-1,1-1,a_i]'*[n_s*n_a,n_a,1]])
+                T2[ind,ind1_s_u[i1_i]]+=(1-pol_σ_U[indU])*(1/n_i)*(1-p(θ[ind1_s_e[i1_i]]))
+                T2[ind,ind1_s_e[i1_i]]+=(1-pol_σ_U[indU])*(1/n_i)*p(θ[ind1_s_e[i1_i]])
             end
 
         end
@@ -146,7 +146,7 @@ function ComputeAggregates(grids,pol_val_functions,Φ,z)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
-    (V_E,V_U,V_S,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_a_S,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+    (V_E,V_U,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 
     nstates=n_i*n_s*n_a*n_μ+n_i*n_s*n_a+n_a
     nsvars=5
