@@ -1,7 +1,7 @@
 
 # Workers' value function iteration
 
-function VFunctionIter(grids,θ;Vguess=false,tol=false)
+function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     if tol==false
@@ -14,13 +14,11 @@ function VFunctionIter(grids,θ;Vguess=false,tol=false)
 
     nstates_E=n_μ*n_a*n_s*n_i
     ngrids_vars_E=[n_i,n_s,n_a,n_μ]
-    nstates_U=n_a*n_s*n_i
+    nstates_U=n_a+n_i*n_a
     ngrids_vars_U=[n_i,n_s,n_a]
-    nstates_S=n_a
 
     nsvars_E=4
     nsvars_U=3
-    nsvars_S=1
 
     statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
     for v in 1:nsvars_E
@@ -28,20 +26,19 @@ function VFunctionIter(grids,θ;Vguess=false,tol=false)
     end
 
     statestogrid_U=zeros(Int64,nstates_U,nsvars_U)
-    for v in 1:nsvars_U
-        statestogrid_U[:,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(1:ngrids_vars_U[v],ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+    statestogrid_U[1:n_a,:]=hcat(ones(n_a,2),1:n_a)
+    for i_i in 1:n_i
+        statestogrid_U[n_a+(i_i-1)*n_a+1:n_a+i_i*n_a,:]=hcat(i_i*ones(n_a,1),2*ones(n_a,1),1:n_a)
     end
 
-    statestogrid_S=1:n_a
 
     if Vguess==false
         V_E_old=zeros(nstates_E)
         V_U_old=zeros(nstates_U)
         W_E_old=zeros(nstates_E)
         W_U_old=zeros(nstates_U)
-        W_S_old=zeros(nstates_S)
     else
-        V_E_old,V_U_old,W_E_old,W_U_old,W_S_old=Vguess
+        V_E_old,V_U_old,W_E_old,W_U_old=Vguess
     end
 
     V_E_aux=zeros(n_a,nstates_E)
@@ -50,15 +47,14 @@ function VFunctionIter(grids,θ;Vguess=false,tol=false)
     V_U=zeros(nstates_U)
     W_E=zeros(nstates_E)
     W_U=zeros(nstates_U)
-    W_S=zeros(nstates_S)
 
     pol_a_E=zeros(Int64,nstates_E)
     pol_a_U=zeros(Int64,nstates_U)
 
-    pol_μ_U=zeros(Int64,nstates_U)
+    pol_μ_U=zeros(Int64,nstates_U,n_i)
 
     pol_σ_E=zeros(nstates_E)
-    pol_σ_U=zeros(nstates_U)
+    pol_σ_U=zeros(nstates_U,n_i)
 
 
     u(c)=if c>0 c^(1-σ)/(1-σ) else -Inf end
@@ -85,18 +81,19 @@ function VFunctionIter(grids,θ;Vguess=false,tol=false)
             #end
 
             for a1_i in a1_start:n_a
-                if (1+r)*grid_a[a_i]+grid_μ[μ_i]*wage-grid_a[a1_i]<0
+                c=(1+r)*grid_a[a_i]+grid_μ[μ_i]*wage-grid_a[a1_i]
+                if c<0
                     V_E_aux[a1_i,ind]=-Inf
                 else
                     if s_i==1
                         ind1_u=a1_i
                         ind1_e1=[i_i-1,s_i-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
                         ind1_e2=[i_i-1,2-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                        V_E_aux[a1_i,ind]=u((1+r)*grid_a[a_i]+grid_μ[μ_i]*wage-grid_a[a1_i])+β*((ρ-δ)*W_U_old[ind1_u]+δ*W_S_old[a1_i]+(1-ρ)*((1-α)*W_E_old[ind1_e1]+α*W_E_old[ind1_e2]))
+                        V_E_aux[a1_i,ind]=u(c)+β*(ρ*V_U_old[ind1_u]+(1-ρ)*((1-α)*W_E_old[ind1_e1]+α*W_E_old[ind1_e2]))
                     elseif s_i==2
-                        ind1_u=[i_i-1,s_i-1,a_i]'*[n_s*n_a,n_a,1]
+                        ind1_u=n_a+[i_i-1,a1_i]'*[n_a,1]
                         ind1_e=[i_i-1,s_i-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                        V_E_aux[a1_i,ind]=u((1+r)*grid_a[a_i]+grid_μ[μ_i]*wage-grid_a[a1_i])+β*((ρ-δ)*W_U_old[ind1_u]+δ*W_S_old[a1_i]+(1-ρ)*W_E_old[ind1_e])
+                        V_E_aux[a1_i,ind]=u(c)+β*((ρ-δ)*V_U_old[ind1_u]+δ*V_U_old[a1_i]+(1-ρ)*W_E_old[ind1_e])
                     end
                 end
             #    if a1_i>1 && V_E_aux[a1_i,ind]<V_E_aux[a1_i-1,ind]
@@ -124,11 +121,16 @@ function VFunctionIter(grids,θ;Vguess=false,tol=false)
             #end
 
             for a1_i in a1_start:n_a
-                if (1+r)*grid_a[a_i]+b-grid_a[a1_i]<0
+                c=(1+r)*grid_a[a_i]+b-grid_a[a1_i]
+                if c<0
                     V_U_aux[a1_i,ind]=-Inf
                 else
-                    ind1=[i_i-1,s_i-1,a1_i]'*[n_s*n_a,n_a,1]
-                    V_U_aux[a1_i,ind]=u((1+r)*grid_a[a_i]+b-grid_a[a1_i])+β*(W_U_old[ind1])
+                    if s_i==1
+                        ind1=a1_i
+                    elseif s_i==2
+                        ind1=n_a+[i_i-1,a1_i]'*[n_a,1]
+                    end
+                    V_U_aux[a1_i,ind]=u(c)+β*W_U_old[ind1]
                 end
             #    if a1_i>1 && V_U_aux[a1_i,ind]<V_U_aux[a1_i-1,ind]
             #        V_U[ind]=V_U_aux[a1_i-1,ind]
@@ -144,74 +146,84 @@ function VFunctionIter(grids,θ;Vguess=false,tol=false)
 
 
         # Now compute Ws
-        V_job_s=zeros(length(W_U))
-        for ind in eachindex(W_U)
-            a_i=statestogrid_U[ind,3]
-            s_i=statestogrid_U[ind,2]
-            i_i=statestogrid_U[ind,1]
 
-
-            Val_temp=zeros(n_μ)
-            for μ_i in 1:n_μ
-                ste=[i_i-1,s_i-1,a_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                prob=p(θ[ste])
-                Val_temp[μ_i]=prob*V_E[ste]+(1-prob)*V_U[ind]
-            end
-            V_job_s[ind],pol_μ_U[ind]=findmax(Val_temp)
-        end
-
-        # 1) W_S
-        for a_i in 1:n_a
-            ind=a_i
-
-            ind1=zeros(Int64,n_i)
-            Vexp=zeros(n_i)
-            for i_i in 1:n_i
-                ind1[i_i]=[i_i-1,1-1,a_i]'*[n_s*n_a,n_a,1]
-                Vexp[i_i]=V_job_s[ind1[i_i]]
-            end
-
-            W_S[ind]=mean(Vexp)
-        end
-
-        # 2) W_E
+        # 1) W_E
         for ind in eachindex(W_E)
             μ_i=statestogrid_E[ind,4]
             a_i=statestogrid_E[ind,3]
             s_i=statestogrid_E[ind,2]
             i_i=statestogrid_E[ind,1]
 
-            W_E[ind]=σ_ϵ*log(exp(V_E[ind]/σ_ϵ)+exp(W_S[a_i]/σ_ϵ))
-            pol_σ_E[ind]=exp(V_E[ind]/σ_ϵ)/(exp(V_E[ind]/σ_ϵ)+exp(W_S[a_i]/σ_ϵ))
+            if s_i==1
+                W_E[ind]=σ_ϵ*log(exp(V_E[ind]/σ_ϵ)+exp(V_U[a_i]/σ_ϵ))
+                pol_σ_E[ind]=exp(V_E[ind]/σ_ϵ)/(exp(V_E[ind]/σ_ϵ)+exp(V_U[a_i]/σ_ϵ))
+            elseif s_i==2
+                W_E[ind]=σ_ϵ*log(exp(V_E[ind]/σ_ϵ)+exp(V_U[i_i*n_a+a_i]/σ_ϵ))
+                pol_σ_E[ind]=exp(V_E[ind]/σ_ϵ)/(exp(V_E[ind]/σ_ϵ)+exp(V_U[i_i*n_a+a_i]/σ_ϵ))
+            end
         end
 
-        # 3) W_U
+        # 2) W_U
+        V_job_s=zeros(length(W_U),n_i)
         for ind in eachindex(W_U)
             a_i=statestogrid_U[ind,3]
             s_i=statestogrid_U[ind,2]
             i_i=statestogrid_U[ind,1]
 
-            W_U[ind]=σ_ϵ*log(exp(V_job_s[ind]/σ_ϵ)+exp(W_S[a_i]/σ_ϵ))
-            pol_σ_U[ind]=exp(V_job_s[ind]/σ_ϵ)/(exp(V_job_s[ind]/σ_ϵ)+exp(W_S[a_i]/σ_ϵ))
+            Val_temp=zeros(n_μ)
+
+
+            if s_i==1
+                for i1_i in 1:n_i
+                    for μ1_i in 1:n_μ
+                        ste=[i1_i-1,1-1,a_i-1,μ1_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                        prob=p(θ[ste])
+                        Val_temp[μ1_i]=prob*V_E[ste]+(1-prob)*V_U[ind]
+                    end
+                    V_job_s[ind,i1_i],pol_μ_U[ind,i1_i]=findmax(Val_temp)
+                end
+
+                W_U[ind]=σ_ϵ*log(sum(exp.(V_job_s[ind,:]/σ_ϵ)))
+                for i1_i in 1:n_i
+                    pol_σ_U[ind,i1_i]=exp(V_job_s[ind,i1_i]/σ_ϵ)/sum(exp.(V_job_s[ind,:]/σ_ϵ))
+                end
+            elseif s_i==2
+                for i1_i in 1:n_i
+                    for μ1_i in 1:n_μ
+                        if i1_i==i_i
+                            s1_i=2
+                        else
+                            s1_i=1
+                        end
+                        ste=[i1_i-1,s1_i-1,a_i-1,μ1_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                        prob=p(θ[ste])
+                        Val_temp[μ1_i]=prob*V_E[ste]+(1-prob)*V_U[ind]
+                    end
+                    V_job_s[ind,i1_i],pol_μ_U[ind,i1_i]=findmax(Val_temp)
+                end
+
+                W_U[ind]=σ_ϵ*log(sum(exp.(V_job_s[ind,:]/σ_ϵ)))
+                for i1_i in 1:n_i
+                    pol_σ_U[ind,i1_i]=exp(V_job_s[ind,i1_i]/σ_ϵ)/sum(exp.(V_job_s[ind,:]/σ_ϵ))
+                end
+            end
         end
 
         error=maximum((W_E-W_E_old).^2)+maximum((W_U-W_U_old).^2)
         println("iter ",iter,": error=",error)
         W_E,W_E_old=W_E_old,W_E
         W_U,W_U_old=W_U_old,W_U
-        W_S,W_S_old=W_S_old,W_S
     end
 
     W_E,W_E_old=W_E_old,W_E
     W_U,W_U_old=W_U_old,W_U
-    W_S,W_S_old=W_S_old,W_S
 
-    return V_E,V_U,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U
+    return V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U
 end
 
 # Firms' value function iteration
 
-function JFunctionIter(grids,policyfunctions_W; Jguess=false,tol=false)
+function JFunctionIter(grids,w,policyfunctions_W; Jguess=false,tol=false)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     (pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)=policyfunctions_W
@@ -280,7 +292,7 @@ end
 
 # Iteration of firms and workers' value functions
 
-function ValueFunctions(grids;Guess=false)
+function ValueFunctions(grids,w;Guess=false)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
@@ -289,12 +301,12 @@ function ValueFunctions(grids;Guess=false)
 
     θ=zeros(n_μ*n_a*n_s*n_i)
     if Guess==false
-        J_old=0.3*ones(n_μ*n_a*n_s*n_i)
+        J_old=0.5*ones(n_μ*n_a*n_s*n_i)
         Vfunctions=false
         policyfunctions=false
     else
-        (V_E_old,V_U_old,W_E_old,W_U_old,W_S_old,pol_a_E_old,pol_a_U_old,pol_μ_U_old,pol_σ_E_old,pol_σ_U_old,J_old,θ_old)=Guess
-        Vfunctions=(V_E_old,V_U_old,W_E_old,W_U_old,W_S_old)
+        (V_E_old,V_U_old,W_E_old,W_U_old,pol_a_E_old,pol_a_U_old,pol_μ_U_old,pol_σ_E_old,pol_σ_U_old,J_old,θ_old)=Guess
+        Vfunctions=(V_E_old,V_U_old,W_E_old,W_U_old)
         policyfunctions=(pol_a_E_old,pol_a_U_old,pol_μ_U_old,pol_σ_E_old,pol_σ_U_old)
     end
 
@@ -309,12 +321,12 @@ function ValueFunctions(grids;Guess=false)
             θ[ind]=q_inv(κ/J_old[ind])
         end
 
-        V_E,V_U,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIter(grids,θ,Vguess=Vfunctions,tol=1e-9)
+        V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIterEq(grids,w,θ,Vguess=Vfunctions,tol=1e-9)
 
         policyfunctions=(pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)
-        Vfunctions=(V_E,V_U,W_E,W_U,W_S)
+        Vfunctions=(V_E,V_U,W_E,W_U)
 
-        J=JFunctionIter(grids,policyfunctions,Jguess=J_old,tol=1e-9)
+        J=JFunctionIter(grids,w,policyfunctions,Jguess=J_old,tol=1e-9)
 
         error=maximum((J-J_old).^2)
         println("iter ",iter," in outward loop, error of ",error)
@@ -325,8 +337,8 @@ function ValueFunctions(grids;Guess=false)
     for ind in eachindex(θ)
         θ[ind]=q_inv(κ/J[ind])
     end
-    (V_E,V_U,W_E,W_U,W_S)=Vfunctions
+    (V_E,V_U,W_E,W_U)=Vfunctions
     (pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)=policyfunctions
 
-    return V_E,V_U,W_E,W_U,W_S,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ
+    return V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ
 end
