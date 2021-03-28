@@ -25,10 +25,10 @@ m=0.45 # Productivity of matching technology
 ν=1.5 # Elasticity of substitution between intermediate goods
 
 # Prices
-#w=[0.3 1.2; 0.3 1.2]
+w=[0.3 1.2; 0.3 1.2]
 r=0.02
 
-z=[3.0; 3.0]
+z=[5.0; 5.0]
 
 # Grids
 n_i=2
@@ -45,7 +45,7 @@ grid_μ=LinRange(0.7,1-1e-2,n_μ)
 grids=(grid_i,grid_s,grid_a,grid_μ)
 
 #=
-V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids)
+V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,w)
 
 pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)
 

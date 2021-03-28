@@ -159,10 +159,16 @@ end
 
 function GeneralEquilibrium(grids,z)
 
+    if maximum(z[2:end]-z[1:end-1])!=0
+        diffz=true
+        println("message: different productivities")
+        return
+    else
+        diffz=false
+    end
+
     ϵ=1e-6
 
-    I_old=[0.3,0.3]
-    E_old=[0.15,0.15]
 
     function Y_CES(z,I,E)
         Y=0
@@ -174,48 +180,80 @@ function GeneralEquilibrium(grids,z)
     end
 
     pol_val_functions=false
-    maxerr=1000
-    iter=0
 
-    while maxerr>ϵ
-        iter+=1
-        println("iter ",iter)
+    Iiter=0
 
-        Y=Y_CES(z,I_old,E_old)
+    IL=0.05
+    IU=0.45
+    Ierr=1000
+    Is=false
 
-        wages(Y,z,i,e)=((1/n_i)*γ*Y^(1/ν)*z^(1-(1/ν))*i^(γ*(1-(1/ν))-1)*e^((1-γ)*(1-(1/ν))),
+    while Ierr>ϵ
+        Iiter+=1
+        println("I iter ",Iiter)
+
+        Id=ones(n_i,1)*(IL*0.5+IU*0.5)
+
+        Eiter=0
+
+        EL=0.0
+        EU=1/n_i-Id[1]
+        Eerr=1000
+
+        while Eerr>ϵ && Eiter<10
+            Eiter+=1
+            println("E iter ",Eiter)
+
+            Ed=ones(n_i,1)*(EL*0.5+EU*0.5)
+
+            Y=Y_CES(z,Id,Ed)
+
+            wages(Y,z,i,e)=((1/n_i)*γ*Y^(1/ν)*z^(1-(1/ν))*i^(γ*(1-(1/ν))-1)*e^((1-γ)*(1-(1/ν))),
                             (1/n_i)*(1-γ)*Y^(1/ν)*z^(1-(1/ν))*i^(γ*(1-(1/ν)))*e^((1-γ)*(1-(1/ν))-1))
 
-        w=zeros(n_i,n_s)
-        for i_i in 1:n_i
-            for s_i in 1:n_s
-                w[i_i,s_i]=wages(Y,z[i_i],I_old[i_i],E_old[i_i])[s_i]
+            w=zeros(n_i,n_s)
+            for i_i in 1:n_i
+                for s_i in 1:n_s
+                    w[i_i,s_i]=wages(Y,z[i_i],Id[i_i],Ed[i_i])[s_i]
+                end
             end
+
+            display(w)
+
+            if Eiter==1 && Iiter==1
+                V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,w)
+            else
+                V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,w;Guess=pol_val_functions)
+            end
+            pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)
+
+            Φ=ComputeDistribution(grids,pol_val_functions)
+
+            Y,Is,Es,U_I,U_E=ComputeAggregates(grids,pol_val_functions,Φ,z)
+
+            Eerr=Es[1]-Ed[1]
+
+            if Eerr>0
+                EL=Ed[1]
+            else
+                EU=Ed[1]
+            end
+            Eerr=abs(Eerr)
+            println("E error is: ",Eerr)
         end
 
-        display(w)
+        Ierr=Is[1]-Id[1]
 
-        if iter==1
-            V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,w)
+        if Ierr>0
+            IL=Id[1]
         else
-            V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,w;Guess=pol_val_functions)
+            IU=Id[1]
         end
-        pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)
+        Ierr=abs(Ierr)
+        println("I error is: ",Ierr)
 
-        Φ=ComputeDistribution(grids,pol_val_functions)
-
-        Y,I,E,U_I,U_E=ComputeAggregates(grids,pol_val_functions,Φ,z)
-
-        error=abs.([I-I_old;E-E_old])
-        display(I)
-        display(E)
-        maxerr=maximum(error)
-        println("error is: ",maxerr)
-        I,I_old=I_old,I
-        E,E_old,E_old,E
     end
-    I,I_old=I_old,I
-    E,E_old,E_old,E
+
 
     return pol_val_functions,Φ,Y,I,E,U_I,U_E
 end

@@ -77,7 +77,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
             #if a_i==1
                 a1_start=1
             #else
-            #    a1_start=max(pol_a_E[[i_i-1,s_i-1,(a_i-1)-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]]-1,1)
+            #    a1_start=max(pol_a_E[[i_i-1,s_i-1,(a_i-1)-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]],1)
             #end
 
             for a1_i in a1_start:n_a
@@ -96,7 +96,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
                         V_E_aux[a1_i,ind]=u(c)+β*((ρ-δ)*V_U_old[ind1_u]+δ*V_U_old[a1_i]+(1-ρ)*W_E_old[ind1_e])
                     end
                 end
-            #    if a1_i>1 && V_E_aux[a1_i,ind]<V_E_aux[a1_i-1,ind]
+            #    if a1_i>a1_start && V_E_aux[a1_i,ind]<V_E_aux[a1_i-1,ind]
             #        V_E[ind]=V_E_aux[a1_i-1,ind]
             #        pol_a_E[ind]=a1_i-1
             #        break
@@ -105,7 +105,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
             #        pol_a_E[ind]=a1_i
             #    end
             end
-            V_E[ind],pol_a_E[ind]=findmax(V_E_aux[:,ind])
+            V_E[ind],pol_a_E[ind]=findmax(V_E_aux[a1_start:end,ind])
         end
 
         # 2) V_U
@@ -117,7 +117,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
             #if a_i==1
                 a1_start=1
             #else
-            #    a1_start=max(pol_a_U[[i_i-1,s_i-1,(a_i-1)]'*[n_s*n_a,n_a,1]]-1,1)
+            #    a1_start=max(pol_a_U[ind-1],1)
             #end
 
             for a1_i in a1_start:n_a
@@ -141,7 +141,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
             #        pol_a_U[ind]=a1_i
             #    end
             end
-            V_U[ind],pol_a_U[ind]=findmax(V_U_aux[:,ind])
+            V_U[ind],pol_a_U[ind]=findmax(V_U_aux[a1_start:end,ind])
         end
 
 
