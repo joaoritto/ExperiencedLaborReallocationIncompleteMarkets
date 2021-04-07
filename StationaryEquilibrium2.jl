@@ -1,13 +1,13 @@
 
 # Computing the stationary distribution
 
-function ComputeDistribution(grids,pol_val_functions)
+function ComputeDistribution(grids,pol_functions)
 
     p(θ)=min(m*θ^(1-ξ),1)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
-    (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+    (pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)=pol_functions
 
     nstates=n_i*n_s*n_a*n_μ+n_a+n_i*n_a
     nsvars=5
@@ -125,13 +125,13 @@ end
 
 # Computing aggregates in the stationary equilibrium
 
-function ComputeAggregates(grids,pol_val_functions,Φ,z)
+function ComputeAggregates(grids,pol_functions,Φ,z)
 
     p(θ)=min(m*θ^(1-ξ),1)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
-    (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+    pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=pol_functions
 
     nstates=n_i*n_s*n_a*n_μ+n_i*n_a
 
@@ -168,7 +168,6 @@ function GeneralEquilibrium(grids,z)
     end
 
     ϵ=1e-6
-
 
     function Y_CES(z,I,E)
         Y=0
@@ -220,16 +219,12 @@ function GeneralEquilibrium(grids,z)
 
             display(w)
 
-            if Eiter==1 && Iiter==1
-                V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,w)
-            else
-                V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,w;Guess=pol_val_functions)
-            end
-            pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)
+            pol_val_functions=multigrid(nGrids_a)
+            (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+            pol_functions=(pol_a_Ei,pol_a_Ui,pol_μ_U,pol_σ_E,pol_σ_U)
 
-            Φ=ComputeDistribution(grids,pol_val_functions)
-
-            Y,Is,Es,U_I,U_E=ComputeAggregates(grids,pol_val_functions,Φ,z)
+            Φ=ComputeDistribution(grids,pol_functions)
+            Y,Is,Es,U_I,U_E=ComputeAggregates(grids,pol_functions,Φ,z)
 
             Eerr=Es[1]-Ed[1]
 
