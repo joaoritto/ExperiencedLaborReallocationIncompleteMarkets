@@ -1,58 +1,61 @@
 # Skilled Labor Reallocation in an Incomplete Markets Economy
 
-path="C:\\Users\\joaor\\Dropbox\\Economics\\ThirdYearPaper\\Code\\ExperiencedLaborReallocationIncompleteMarkets\\"
+using Distributed, SharedArrays
 
+addprocs(6-length(procs()))
+
+path="C:\\Users\\joaor\\Dropbox\\Economics\\ThirdYearPaper\\Code\\ExperiencedLaborReallocationIncompleteMarkets\\"
 cd(path)
 
-include(path*"ValueFunctionsIteration2.jl")
-include(path*"StationaryEquilibrium2.jl")
-include(path*"AnalyzingResults.jl")
+include(path*"ValueFunctionsIterationParallel.jl")
+include(path*"StationaryEquilibriumParallel.jl")
+#@everywhere include(path*"AnalyzingResults.jl")
 
-using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim
+@everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
-PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
-using_multigrid=0 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
+PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
+using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
 # Calibration of 2 months
 
 # Parameters
-β=0.9935 # Discount factor
-σ=1.5  # Inverse IES
-ρ=0.035/6 # Exogenous separation
-δ=0.025/6 # Separation with loss of skill
-α=0.08/6 # Probability of becoming skilled
-b=0.025 # Unemployment benefits; b > -̲a*r or c<0 at lowest wealth - Calibrate for ratio to wage
-σ_ϵ=0.3 # s.d. of taste shocks
-ξ=0.5 # Unemployed share in matching technology
-m=0.48 # Productivity of matching technology
-κ=0.02 # Vacancy cost - Calibrate to get unemployment rate
-γ=0.44 # Productivity share of inexperienced workers
-ν=1.5 # Elasticity of substitution between intermediate goods
+@everywhere β=0.9935 # Discount factor
+@everywhere σ=1.2  # Inverse IES
+@everywhere ρ=0.035/6 # Exogenous separation
+@everywhere δ=0.025/6 # Separation with loss of skill
+@everywhere α=0.08/6 # Probability of becoming skilled
+@everywhere b=0.025 # Unemployment benefits; b > -̲a*r or c<0 at lowest wealth - Calibrate for ratio to wage
+@everywhere σ_ϵ=0.3 # s.d. of taste shocks
+@everywhere ξ=0.5 # Unemployed share in matching technology
+@everywhere m=0.48 # Productivity of matching technology
+@everywhere κ=0.02 # Vacancy cost - Calibrate to get unemployment rate
+@everywhere γ=0.44 # Productivity share of inexperienced workers
+@everywhere ν=1.5 # Elasticity of substitution between intermediate goods
 
-a_min=-0.5
-a_max=55
+@everywhere a_min=-0.5
+@everywhere a_max=55
 
 # Prices
 if PE==1
-    w=[0.1 0.8; 0.1 0.8]
+        @everywhere w=[0.1 0.8; 0.1 0.8]
 end
-r=0.015/6
+@everywhere r=0.015/6
 
-z=[1.0; 1.0]
+@everywhere z=[1.0; 1.0]
 
 # Grids
-n_i=2
-n_s=2
-n_μ=30
+@everywhere n_i=2
+@everywhere n_s=2
+@everywhere n_μ=30
 
-grid_i=1:n_i
-grid_s=1:n_s
-grid_μ=LinRange(0.7,1-1e-2,n_μ)
+@everywhere grid_i=1:n_i
+@everywhere grid_s=1:n_s
+@everywhere grid_μ=LinRange(0.7,1-1e-2,n_μ)
 
-n_a=100
-nGrids_a=[n_a,30]
+n_a=40
+nGrids_a=[n_a]
 n_anew=150 #nGrids_a[end]
 
 

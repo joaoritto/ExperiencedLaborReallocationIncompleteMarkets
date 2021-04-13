@@ -4,6 +4,11 @@
 function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
+    @eval @everywhere grid_a=$grid_a
+    @eval @everywhere grid_μ=$grid_μ
+    @eval @everywhere w=$w
+    @eval @everywhere θ=$θ
+
     if tol==false
         ϵ=1e-5
     else
@@ -41,21 +46,21 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
         V_E_old,V_U_old,W_E_old,W_U_old=Vguess
     end
 
-    V_E=zeros(nstates_E)
-    V_U=zeros(nstates_U)
-    W_E=zeros(nstates_E)
-    W_U=zeros(nstates_U)
+    V_E=SharedArray{Float64}(nstates_E)
+    V_U=SharedArray{Float64}(nstates_U)
+    W_E=SharedArray{Float64}(nstates_E)
+    W_U=SharedArray{Float64}(nstates_U)
 
-    pol_a_E=zeros(nstates_E)
-    pol_a_U=zeros(nstates_U)
+    pol_a_E=SharedArray{Float64}(nstates_E)
+    pol_a_U=SharedArray{Float64}(nstates_U)
 
-    pol_μ_U=zeros(Int64,nstates_U,n_i)
+    pol_μ_U=SharedArray{Int64}(nstates_U,n_i)
 
-    pol_σ_E=zeros(nstates_E)
-    pol_σ_U=zeros(nstates_U,n_i)
+    pol_σ_E=SharedArray{Float64}(nstates_E)
+    pol_σ_U=SharedArray{Float64}(nstates_U,n_i)
 
 
-    u(c)=if c>0 c^(1-σ)/(1-σ) else -Inf end
+    @everywhere u(c)=if c>0 c^(1-σ)/(1-σ) else -Inf end
     p(θ)=min(m*θ^(1-ξ),1)
     error=1000
 
@@ -63,8 +68,22 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
     while error>ϵ && iter<1000
         iter+=1
 
+        V_E=SharedArray{Float64}(nstates_E)
+        V_U=SharedArray{Float64}(nstates_U)
+        W_E=SharedArray{Float64}(nstates_E)
+        W_U=SharedArray{Float64}(nstates_U)
+        pol_a_E=SharedArray{Float64}(nstates_E)
+        pol_a_U=SharedArray{Float64}(nstates_U)
+        pol_μ_U=SharedArray{Int64}(nstates_U,n_i)
+        pol_σ_E=SharedArray{Float64}(nstates_E)
+        pol_σ_U=SharedArray{Float64}(nstates_U,n_i)
+        @eval @everywhere V_E_old=$V_E_old
+        @eval @everywhere V_U_old=$V_U_old
+        @eval @everywhere W_E_old=$W_E_old
+        @eval @everywhere W_U_old=$W_U_old
+
         # 1) V_E
-        for ind in eachindex(V_E)
+        @sync @distributed for ind in eachindex(V_E)
             μ_i=statestogrid_E[ind,4]
             a_i=statestogrid_E[ind,3]
             s_i=statestogrid_E[ind,2]
@@ -72,11 +91,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
 
             wage=w[i_i,s_i]
 
-            if a_i==1
-                a_guess=[grid_a[a_i]+1e-2]
-            else
-                a_guess=[pol_a_E[[i_i-1,s_i-1,(a_i-1)-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]]+1e-2]
-            end
+            a_guess=[grid_a[a_i]+1e-2]
 
             if s_i==1
                 interp_V_U=LinearInterpolation(grid_a,V_U_old[1:n_a];extrapolation_bc=Line())
@@ -114,7 +129,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
         end
 
         # 2) V_U
-        for ind in eachindex(V_U)
+        @sync @distributed for ind in eachindex(V_U)
             a_i=statestogrid_U[ind,3]
             s_i=statestogrid_U[ind,2]
             i_i=statestogrid_U[ind,1]
@@ -123,11 +138,9 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
                 interp_W_U=LinearInterpolation(grid_a,W_U_old[1:n_a];extrapolation_bc=Line())
 
                 Veval_i(a1)=-(u((1+r)*grid_a[a_i]+b-a1[1])+β*interp_W_U(a1[1]))
-                if a_i==1
-                    a_guess=[grid_a[a_i]+1e-2]
-                else
-                    a_guess=[pol_a_U[a_i-1]+1e-2]
-                end
+
+                a_guess=[grid_a[a_i]+1e-2]
+
                 if Veval_i(a_min)<Veval_i(a_min+1e-12)
                     pol_a_U[ind]=a_min
                     V_U[ind]=-Veval_i(a_min)
@@ -160,7 +173,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
         # Now compute Ws
 
         # 1) W_E
-        for ind in eachindex(W_E)
+        @sync @distributed for ind in eachindex(W_E)
             μ_i=statestogrid_E[ind,4]
             a_i=statestogrid_E[ind,3]
             s_i=statestogrid_E[ind,2]
@@ -176,8 +189,8 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
         end
 
         # 2) W_U
-        V_job_s=zeros(length(W_U),n_i)
-        for ind in eachindex(W_U)
+        V_job_s=SharedArray{Float64}(length(W_U),n_i)
+        @sync @distributed for ind in eachindex(W_U)
             a_i=statestogrid_U[ind,3]
             s_i=statestogrid_U[ind,2]
             i_i=statestogrid_U[ind,1]
