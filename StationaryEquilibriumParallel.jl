@@ -116,7 +116,7 @@ function ComputeDistribution(grids,pol_functions)
     ind0=200
     Φ[ind0]=1.0
 
-    for j in 1:5000
+    for j in 1:1000
         Φ=T'*Φ
     end
 
@@ -159,7 +159,7 @@ end
 
 function GeneralEquilibrium(z)
 
-    n_anew=150 #nGrids_a[end]
+    n_anew=1500 #nGrids_a[end]
 
     if maximum(z[2:end]-z[1:end-1])!=0
         diffz=true
@@ -184,8 +184,8 @@ function GeneralEquilibrium(z)
 
     Iiter=0
 
-    IL=0.45-0.1 #0.2
-    IU=0.45+0.01 #0.35
+    IL=0.411486102666538-0.01 #0.2
+    IU=0.411486102666538+0.01 #0.35
     Ierr=1000
 
     Is=false
@@ -204,8 +204,8 @@ function GeneralEquilibrium(z)
 
         Eiter=0
 
-        EL=0.1 - 0.09 # 0.05
-        EU=min(0.1 + 0.03,0.5-Id[1])  #min(1/n_i-Id[1],0.25)
+        EL=0.07609338860042157-0.01 # 0.05
+        EU=min(0.07609338860042157+0.01,1/n_i-Id[1])  #min(1/n_i-Id[1],0.25)
         Eerr=1000
 
         while Eerr>ϵ && Eiter<10

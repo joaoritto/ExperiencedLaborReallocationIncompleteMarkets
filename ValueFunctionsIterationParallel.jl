@@ -17,6 +17,11 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
 
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
 
+    @eval @everywhere n_i=$n_i
+    @eval @everywhere n_s=$n_s
+    @eval @everywhere n_a=$n_a
+    @eval @everywhere n_μ=$n_μ
+
     nstates_E=n_μ*n_a*n_s*n_i
     ngrids_vars_E=[n_i,n_s,n_a,n_μ]
     nstates_U=n_a+n_i*n_a
@@ -36,6 +41,8 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
         statestogrid_U[n_a+(i_i-1)*n_a+1:n_a+i_i*n_a,:]=hcat(i_i*ones(n_a,1),2*ones(n_a,1),1:n_a)
     end
 
+    @eval @everywhere statestogrid_E=$statestogrid_E
+    @eval @everywhere statestogrid_U=$statestogrid_U
 
     if Vguess==false
         V_E_old=zeros(nstates_E)
@@ -61,7 +68,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
 
 
     @everywhere u(c)=if c>0 c^(1-σ)/(1-σ) else -Inf end
-    p(θ)=min(m*θ^(1-ξ),1)
+    @everywhere p(θ)=min(m*θ^(1-ξ),1)
     error=1000
 
     iter=0
@@ -153,11 +160,9 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
                 interp_W_U=LinearInterpolation(grid_a,W_U_old[i_i*n_a+1:(i_i+1)*n_a];extrapolation_bc=Line())
 
                 Veval_e(a1)=-(u((1+r)*grid_a[a_i]+b-a1[1])+β*interp_W_U(a1[1]))
-                if a_i==1
-                    a_guess=[grid_a[a_i]+1e-2]
-                else
-                    a_guess=[pol_a_U[i_i*n_a+a_i-1]+1e-2]
-                end
+
+                a_guess=[grid_a[a_i]+1e-2]
+
                 if Veval_e(a_min)<Veval_e(a_min+1e-12)
                     pol_a_U[ind]=a_min
                     V_U[ind]=-Veval_e(a_min)
@@ -555,7 +560,14 @@ function transformPola(pol_a_E,pol_a_U,grids)
         end
 
         interp_aux=LinearInterpolation(grid_a,1:n_a)
-        pol_a_Ui[ind]=ceil(interp_aux(pol_a_U[ind]))
+        if pol_a_U[ind]<=a_max && pol_a_U[ind]>=a_min
+            pol_a_Ui[ind]=ceil(interp_aux(pol_a_U[ind]))
+        elseif pol_a_U[ind]>a_max
+            pol_a_Ui[ind]=n_a
+        elseif pol_a_U[ind]<a_min
+            pol_a_Ui[ind]=1
+        end
+
     end
     return pol_a_Ei,pol_a_Ui
 end

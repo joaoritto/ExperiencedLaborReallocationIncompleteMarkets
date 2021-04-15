@@ -9,7 +9,7 @@ cd(path)
 
 include(path*"ValueFunctionsIterationParallel.jl")
 include(path*"StationaryEquilibriumParallel.jl")
-#@everywhere include(path*"AnalyzingResults.jl")
+include(path*"AnalyzingResults.jl")
 
 @everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim
 
@@ -23,23 +23,23 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 # Parameters
 @everywhere β=0.9935 # Discount factor
 @everywhere σ=1.2  # Inverse IES
-@everywhere ρ=0.035/6 # Exogenous separation
+@everywhere ρ=0.04/6 # Exogenous separation
 @everywhere δ=0.025/6 # Separation with loss of skill
 @everywhere α=0.08/6 # Probability of becoming skilled
 @everywhere b=0.025 # Unemployment benefits; b > -̲a*r or c<0 at lowest wealth - Calibrate for ratio to wage
-@everywhere σ_ϵ=0.3 # s.d. of taste shocks
+@everywhere σ_ϵ=0.4 # s.d. of taste shocks
 @everywhere ξ=0.5 # Unemployed share in matching technology
 @everywhere m=0.48 # Productivity of matching technology
-@everywhere κ=0.02 # Vacancy cost - Calibrate to get unemployment rate
-@everywhere γ=0.44 # Productivity share of inexperienced workers
+@everywhere κ=0.01 # Vacancy cost - Calibrate to get unemployment rate
+@everywhere γ=0.3 # Productivity share of inexperienced workers
 @everywhere ν=1.5 # Elasticity of substitution between intermediate goods
 
 @everywhere a_min=-0.5
-@everywhere a_max=55
+@everywhere a_max=30
 
 # Prices
 if PE==1
-        @everywhere w=[0.1 0.8; 0.1 0.8]
+    @everywhere w=[0.0466926 0.577147; 0.0466926 0.577147]
 end
 @everywhere r=0.015/6
 
@@ -48,15 +48,15 @@ end
 # Grids
 @everywhere n_i=2
 @everywhere n_s=2
-@everywhere n_μ=30
+@everywhere n_μ=100
 
 @everywhere grid_i=1:n_i
 @everywhere grid_s=1:n_s
 @everywhere grid_μ=LinRange(0.7,1-1e-2,n_μ)
 
-n_a=40
-nGrids_a=[n_a]
-n_anew=150 #nGrids_a[end]
+n_a=50
+nGrids_a=[n_a,100,200]
+n_anew=1500 #nGrids_a[end]
 
 
 if PE==1

@@ -13,22 +13,22 @@ using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
 PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
-using_multigrid=0 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
+using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
 # Calibration of 2 months
 
 # Parameters
-β=0.9935 # Discount factor
-σ=1.5  # Inverse IES
-ρ=0.035/6 # Exogenous separation
-δ=0.025/6 # Separation with loss of skill
-α=0.08/6 # Probability of becoming skilled
+β=1/1.03 #0.9935 # Discount factor
+σ=2.0  # Inverse IES
+ρ=0.04#/6 # Exogenous separation
+δ=0.01#/6 # Separation with loss of skill
+α=0.08#/6 # Probability of becoming skilled
 b=0.025 # Unemployment benefits; b > -̲a*r or c<0 at lowest wealth - Calibrate for ratio to wage
-σ_ϵ=0.3 # s.d. of taste shocks
+σ_ϵ=0.4 # s.d. of taste shocks
 ξ=0.5 # Unemployed share in matching technology
 m=0.48 # Productivity of matching technology
-κ=0.02 # Vacancy cost - Calibrate to get unemployment rate
-γ=0.44 # Productivity share of inexperienced workers
+κ=0.01 # Vacancy cost - Calibrate to get unemployment rate
+γ=0.3 # Productivity share of inexperienced workers
 ν=1.5 # Elasticity of substitution between intermediate goods
 
 a_min=-0.5
@@ -36,9 +36,9 @@ a_max=55
 
 # Prices
 if PE==1
-    w=[0.1 0.8; 0.1 0.8]
+    w=[0.06 0.7; 0.06 0.7]
 end
-r=0.015/6
+r=0.015#/6
 
 z=[1.0; 1.0]
 
@@ -52,8 +52,8 @@ grid_s=1:n_s
 grid_μ=LinRange(0.7,1-1e-2,n_μ)
 
 n_a=100
-nGrids_a=[n_a,30]
-n_anew=150 #nGrids_a[end]
+nGrids_a=[n_a]
+n_anew=100 #nGrids_a[end]
 
 
 if PE==1

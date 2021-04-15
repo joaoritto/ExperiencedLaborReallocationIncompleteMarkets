@@ -3,7 +3,15 @@
 function Transition(grids,StatEq,zt;Guess=false)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
+    @eval @everywhere grid_a=$grid_a
+    @eval @everywhere grid_μ=$grid_μ
+
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
+
+    @eval @everywhere n_i=$n_i
+    @eval @everywhere n_s=$n_s
+    @eval @everywhere n_a=$n_a
+    @eval @everywhere n_μ=$n_μ
 
     shockdur=size(zt,2)-1
     ϵ=1e-6
@@ -55,8 +63,8 @@ function Transition(grids,StatEq,zt;Guess=false)
                     shocki=i_i
                 end
             end
-            Iold[shocki,2]=0.7*I0[shocki,2]
-            Eold[shocki,2]=0.7*E0[shocki,2]
+            Iold[shocki,2]=0.7*I0[shocki]
+            Eold[shocki,2]=0.7*E0[shocki]
             r=range(0,1,length=T)
             for t in 3:T
                 Iold[shocki,t]=Iold[shocki,2]*(1-r[t-1])+Iss*r[t-1]
@@ -98,21 +106,38 @@ function Transition(grids,StatEq,zt;Guess=false)
         end
     end
 
+    @eval @everywhere wt=$wt
 
     nstates=length(Φss)
     nstates_E=length(V_Ess)
     nstates_U=length(V_Uss)
 
+    statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
+    for v in 1:nsvars_E
+        statestogrid_E[:,v]=kron(ones(prod(ngrids_vars_E[1:v-1]),1),kron(1:ngrids_vars_E[v],ones(prod(ngrids_vars_E[v+1:nsvars_E]),1)))
+    end
 
-    V_E=zeros(nstates_E,T)
-    V_U=zeros(nstates_U,T)
-    W_E=zeros(nstates_E,T)
-    W_U=zeros(nstates_U,T)
-    pol_a_E=zeros(Int64,nstates_E,T)
-    pol_a_U=zeros(Int64,nstates_U,T)
-    pol_μ_U=zeros(Int64,nstates_U,n_i,T)
-    pol_σ_E=zeros(nstates_E,T)
-    pol_σ_U=zeros(nstates_E,n_i,T)
+    statestogrid_U=zeros(Int64,nstates_U,nsvars_U)
+    statestogrid_U[1:n_a,:]=hcat(ones(n_a,2),1:n_a)
+    for i_i in 1:n_i
+        statestogrid_U[n_a+(i_i-1)*n_a+1:n_a+i_i*n_a,:]=hcat(i_i*ones(n_a,1),2*ones(n_a,1),1:n_a)
+    end
+
+    @eval @everywhere statestogrid_E=$statestogrid_E
+    @eval @everywhere statestogrid_U=$statestogrid_U
+
+    V_E=SharedArray{Float64}(nstates_E,T)
+    V_U=SharedArray{Float64}(nstates_U,T)
+    W_E=SharedArray{Float64}(nstates_E,T)
+    W_U=SharedArray{Float64}(nstates_U,T)
+    pol_a_E=SharedArray{Float64}(nstates_E,T)
+    pol_a_U=SharedArray{Float64}(nstates_U,T)
+    pol_μ_U=SharedArray{Int64}(nstates_U,n_i,T)
+    pol_σ_E=SharedArray{Float64}(nstates_E,T)
+    pol_σ_U=SharedArray{Float64}(nstates_E,n_i,T)
+
+    pol_a_E=zeros(nstates_E,T)
+    pol_a_U=zeros(nstates_U,T)
 
     J=zeros(nstates_E,T)
     θ=zeros(nstates_E,T)
@@ -124,17 +149,25 @@ function Transition(grids,StatEq,zt;Guess=false)
     U_I=zeros(T)
     U_E=zeros(n_i,T)
 
-    u(c)=if c>0 c^(1-σ)/(1-σ) else -Inf end
-    p(θ)=min(m*θ^(1-ξ),1)
+    @everywhere u(c)=if c>0 c^(1-σ)/(1-σ) else -Inf end
+    @everywhere p(θ)=min(m*θ^(1-ξ),1)
 
     error=1000
 
     while error>ϵ
 
-        for t in T:-1:1
+        V_E=SharedArray{Float64}(nstates_E,T)
+        V_U=SharedArray{Float64}(nstates_U,T)
+        W_E=SharedArray{Float64}(nstates_E,T)
+        W_U=SharedArray{Float64}(nstates_U,T)
+        pol_a_E=SharedArray{Float64}(nstates_E,T)
+        pol_a_U=SharedArray{Float64}(nstates_U,T)
+        pol_μ_U=SharedArray{Int64}(nstates_U,n_i,T)
+        pol_σ_E=SharedArray{Float64}(nstates_E,T)
+        pol_σ_U=SharedArray{Float64}(nstates_E,n_i,T)
 
-            V_E_aux=zeros(n_a,nstates_E)
-            V_U_aux=zeros(n_a,nstates_U)
+
+        for t in T:-1:1
 
             if t==T
                 W_E_old,W_U_old=W_Ess,W_Uss
@@ -144,8 +177,13 @@ function Transition(grids,StatEq,zt;Guess=false)
                 V_E_old,V_U_old=V_E[:,t+1],V_U[:,t+1]
             end
 
+            @eval @everywhere V_E_old=$V_E_old
+            @eval @everywhere V_U_old=$V_U_old
+            @eval @everywhere W_E_old=$W_E_old
+            @eval @everywhere W_U_old=$W_U_old
+
             # 1) V_E
-            for ind in eachindex(V_E[:,t])
+            @sync @distributed for ind in eachindex(V_E[:,t])
                 μ_i=statestogrid_E[ind,4]
                 a_i=statestogrid_E[ind,3]
                 s_i=statestogrid_E[ind,2]
@@ -153,74 +191,81 @@ function Transition(grids,StatEq,zt;Guess=false)
 
                 wage=wt[i_i,s_i,t]
 
-                #if a_i==1
-                    a1_start=1
-                #else
-                #    a1_start=max(pol_a_E[[i_i-1,s_i-1,(a_i-1)-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]]-1,1)
-                #end
+                a_guess=[grid_a[a_i]+1e-2]
 
-                for a1_i in a1_start:n_a
-                    c=(1+r)*grid_a[a_i]+grid_μ[μ_i]*wage-grid_a[a1_i]
-                    if c<0
-                        V_E_aux[a1_i,ind]=-Inf
+                if s_i==1
+                    interp_V_U=LinearInterpolation(grid_a,V_U_old[1:n_a];extrapolation_bc=Line())
+                    ind1_ei=[i_i-1,1-1,1-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                    interp_W_Ei=LinearInterpolation(grid_a,W_E_old[ind1_ei:n_μ:(ind1_ei-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+                    ind1_ee=[i_i-1,2-1,1-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                    interp_W_Ee=LinearInterpolation(grid_a,W_E_old[ind1_ee:n_μ:(ind1_ee-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+
+                    Veval_i(a1)= -(u((1+r)*grid_a[a_i]+grid_μ[μ_i]*wage-a1[1])+β*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α)*interp_W_Ei(a1[1])+α*interp_W_Ee(a1[1]))))
+                    if Veval_i(a_min)<Veval_i(a_min+1e-12)
+                        pol_a_E[ind,t]=a_min
+                        V_E[ind,t]=-Veval_i(a_min)
                     else
-                        if s_i==1
-                            ind1_u=a1_i
-                            ind1_e1=[i_i-1,s_i-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                            ind1_e2=[i_i-1,2-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                            V_E_aux[a1_i,ind]=u(c)+β*(ρ*V_U_old[ind1_u]+(1-ρ)*((1-α)*W_E_old[ind1_e1]+α*W_E_old[ind1_e2]))
-                        elseif s_i==2
-                            ind1_u=n_a+[i_i-1,a1_i]'*[n_a,1]
-                            ind1_e=[i_i-1,s_i-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                            V_E_aux[a1_i,ind]=u(c)+β*((ρ-δ)*V_U_old[ind1_u]+δ*V_U_old[a1_i]+(1-ρ)*W_E_old[ind1_e])
-                        end
+                        opt=optimize(Veval_i,a_guess,BFGS())
+                        pol_a_E[ind,t]=opt.minimizer[1]
+                        V_E[ind,t]=-opt.minimum
                     end
-                #    if a1_i>1 && V_E_aux[a1_i,ind]<V_E_aux[a1_i-1,ind]
-                #        V_E[ind]=V_E_aux[a1_i-1,ind]
-                #        pol_a_E[ind]=a1_i-1
-                #        break
-                #    elseif a1_i==n_a
-                #        V_E[ind]=V_E_aux[a1_i,ind]
-                #        pol_a_E[ind]=a1_i
-                #    end
+                elseif s_i==2
+                    interp_V_Ui=LinearInterpolation(grid_a,V_U_old[1:n_a];extrapolation_bc=Line())
+                    interp_V_Ue=LinearInterpolation(grid_a,V_U_old[i_i*n_a+1:(i_i+1)*n_a];extrapolation_bc=Line())
+                    ind1_e=[i_i-1,2-1,1-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                    interp_W_E=LinearInterpolation(grid_a,W_E_old[ind1_e:n_μ:(ind1_e-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+
+                    Veval_e(a1)= -(u((1+r)*grid_a[a_i]+grid_μ[μ_i]*wage-a1[1])+β*((ρ-δ)*interp_V_Ue(a1[1])+δ*interp_V_Ui(a1[1])+(1-ρ)*interp_W_E(a1[1])))
+                    if Veval_e(a_min)<Veval_e(a_min+1e-12)
+                        pol_a_E[ind,t]=a_min
+                        V_E[ind,t]=-Veval_e(a_min)
+                    else
+                        opt=optimize(Veval_e,a_guess,BFGS())
+                        pol_a_E[ind,t]=opt.minimizer[1]
+                        V_E[ind,t]=-opt.minimum
+                    end
                 end
-                V_E[ind,t],pol_a_E[ind,t]=findmax(V_E_aux[:,ind])
+
             end
 
+
             # 2) V_U
-            for ind in eachindex(V_U[:,t])
+            @sync @distributed for ind in eachindex(V_U[:,t])
                 a_i=statestogrid_U[ind,3]
                 s_i=statestogrid_U[ind,2]
                 i_i=statestogrid_U[ind,1]
 
-                #if a_i==1
-                    a1_start=1
-                #else
-                #    a1_start=max(pol_a_U[[i_i-1,s_i-1,(a_i-1)]'*[n_s*n_a,n_a,1]]-1,1)
-                #end
+                if s_i==1
+                    interp_W_U=LinearInterpolation(grid_a,W_U_old[1:n_a];extrapolation_bc=Line())
 
-                for a1_i in a1_start:n_a
-                    c=(1+r)*grid_a[a_i]+b-grid_a[a1_i]
-                    if c<0
-                        V_U_aux[a1_i,ind]=-Inf
+                    Veval_i(a1)=-(u((1+r)*grid_a[a_i]+b-a1[1])+β*interp_W_U(a1[1]))
+
+                    a_guess=[grid_a[a_i]+1e-2]
+
+                    if Veval_i(a_min)<Veval_i(a_min+1e-12)
+                        pol_a_U[ind,t]=a_min
+                        V_U[ind,t]=-Veval_i(a_min)
                     else
-                        if s_i==1
-                            ind1=a1_i
-                        elseif s_i==2
-                            ind1=n_a+[i_i-1,a1_i]'*[n_a,1]
-                        end
-                        V_U_aux[a1_i,ind]=u(c)+β*W_U_old[ind1]
+                        opt=optimize(Veval_i,a_guess,BFGS())
+                        pol_a_U[ind,t]=opt.minimizer[1]
+                        V_U[ind,t]=-opt.minimum
                     end
-                #    if a1_i>1 && V_U_aux[a1_i,ind]<V_U_aux[a1_i-1,ind]
-                #        V_U[ind]=V_U_aux[a1_i-1,ind]
-                #        pol_a_U[ind]=a1_i-1
-                #        break
-                #    elseif a1_i==n_a
-                #        V_U[ind]=V_U_aux[a1_i,ind]
-                #        pol_a_U[ind]=a1_i
-                #    end
+                elseif s_i==2
+                    interp_W_U=LinearInterpolation(grid_a,W_U_old[i_i*n_a+1:(i_i+1)*n_a];extrapolation_bc=Line())
+
+                    Veval_e(a1)=-(u((1+r)*grid_a[a_i]+b-a1[1])+β*interp_W_U(a1[1]))
+
+                    a_guess=[grid_a[a_i]+1e-2]
+
+                    if Veval_e(a_min)<Veval_e(a_min+1e-12)
+                        pol_a_U[ind,t]=a_min
+                        V_U[ind,t]=-Veval_e(a_min)
+                    else
+                        opt=optimize(Veval_e,a_guess,BFGS())
+                        pol_a_U[ind,t]=opt.minimizer[1]
+                        V_U[ind,t]=-opt.minimum
+                    end
                 end
-                V_U[ind,t],pol_a_U[ind,t]=findmax(V_U_aux[:,ind])
             end
 
             if t==T
@@ -238,18 +283,27 @@ function Transition(grids,StatEq,zt;Guess=false)
                 i_i=statestogrid[ind,1]
 
                 wage=wt[i_i,s_i,t]
-                a1_i=pol_a_E[ind]
+                a1=pol_a_E[ind]
 
                 if s_i==1
-                    ind1_0=[i_i-1,s_i-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                    ind1_1=[i_i-1,2-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                    σ_prob0=pol_σ_E_old[ind1_0]
-                    σ_prob1=pol_σ_E_old[ind1_1]
-                    J[ind,t]=(1-grid_μ[μ_i])*wage+β*(1-ρ)*((1-α)*σ_prob0*J_old[ind1_0]+α*σ_prob1*J_old[ind1_1])
+                    ind1_i=[i_i-1,s_i-1,1-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                    ind1_e=[i_i-1,2-1,1-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                    interp_pol_σ_Ei=LinearInterpolation(grid_a,pol_σ_E[ind1_i:n_μ:(ind1_i-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+                    interp_pol_σ_Ee=LinearInterpolation(grid_a,pol_σ_E[ind1_e:n_μ:(ind1_e-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+                    σ_probi=interp_pol_σ_Ei(a1)
+                    σ_probe=interp_pol_σ_Ee(a1)
+                    interp_Ji=LinearInterpolation(grid_a,J_old[ind1_i:n_μ:(ind1_i-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+                    interp_Je=LinearInterpolation(grid_a,J_old[ind1_e:n_μ:(ind1_e-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+                    Ji=interp_Ji(a1)
+                    Je=interp_Je(a1)
+                    J[ind,t]=(1-grid_μ[μ_i])*wage+β*(1-ρ)*((1-α)*σ_probi*Ji+α*σ_probe*Je)
                 elseif s_i==2
-                    ind1=[i_i-1,s_i-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                    σ_prob=pol_σ_E_old[ind1]
-                    J[ind,t]=(1-grid_μ[μ_i])*wage+β*(1-ρ)*σ_prob*J_old[ind1]
+                    ind1=[i_i-1,s_i-1,1-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                    interp_pol_σ_E=LinearInterpolation(grid_a,pol_σ_E[ind1:n_μ:(ind1-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+                    σ_prob=interp_pol_σ_E(a1)
+                    interp_J=LinearInterpolation(grid_a,J_old[ind1:n_μ:(ind1-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+                    Jaux=interp_J(a1)
+                    J[ind,t]=(1-grid_μ[μ_i])*wage+β*(1-ρ)*σ_prob*Jaux
                 end
             end
 
@@ -258,7 +312,7 @@ function Transition(grids,StatEq,zt;Guess=false)
             end
 
             # 1) W_E
-            for ind in eachindex(W_E[:,t])
+            @sync @distributed for ind in eachindex(W_E[:,t])
                 μ_i=statestogrid_E[ind,4]
                 a_i=statestogrid_E[ind,3]
                 s_i=statestogrid_E[ind,2]
@@ -274,8 +328,8 @@ function Transition(grids,StatEq,zt;Guess=false)
             end
 
             # 2) W_U
-            V_job_s=zeros(nstates_U,n_i)
-            for ind in eachindex(W_U[:,t])
+            V_job_s=SharedArray{Float64}(nstates_U,n_i)
+            @sync @distributed for ind in eachindex(W_U[:,t])
                 a_i=statestogrid_U[ind,3]
                 s_i=statestogrid_U[ind,2]
                 i_i=statestogrid_U[ind,1]
@@ -323,6 +377,12 @@ function Transition(grids,StatEq,zt;Guess=false)
         Φ[:,1]=Φ0
 
         for t in 1:T
+            pol_a_Ei,pol_a_Ui=transformPola(pol_a_E[:,t],pol_a_U[:,t],grids)
+        end
+
+        # pol_a needs to be changed from values to indices
+
+        for t in 1:T
             # Construct Transition matrix
             Tr=spzeros(nstates,nstates)
 
@@ -336,7 +396,7 @@ function Transition(grids,StatEq,zt;Guess=false)
                 if e_i==1
 
                     indE=[i_i-1,s_i-1,a_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
-                    a1_i=pol_a_E[indE,t]
+                    a1_i=pol_a_Ei[indE,t]
                     if s_i==1
                         ind1_e0=[i_i-1,s_i-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
                         ind1_e1=[i_i-1,2-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
@@ -373,7 +433,7 @@ function Transition(grids,StatEq,zt;Guess=false)
                     ind1_u=zeros(Int64,n_i)
                     ind1_e=zeros(Int64,n_i)
 
-                    a1_i=pol_a_U[indU,t]
+                    a1_i=pol_a_Ui[indU,t]
 
                     if s_i==1
 
