@@ -1,6 +1,6 @@
 # Computing a transition
 
-function Transition(grids,StatEq,zt;Guess=false)
+function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     @eval @everywhere grid_a=$grid_a
@@ -13,19 +13,10 @@ function Transition(grids,StatEq,zt;Guess=false)
     @eval @everywhere n_a=$n_a
     @eval @everywhere n_μ=$n_μ
 
-    shockdur=size(zt,2)-1
+    shockdur=size(zt,2)
     ϵ=1e-6
     wupdate=0.5
-    # Is shock permanent? (or transitory?)
-    aux=zeros(n_i)
-    for i_i in 1:n_i
-        aux[i_i]=abs(zt[i_i,t]/zt[i_i,t]-1)
-    end
-    if maximum(aux)==0
-        permanent=0
-    else
-        permanent=1
-    end
+
 
     if permanent==1
         (StatEq1,StatEq2)=StatEq
@@ -45,30 +36,25 @@ function Transition(grids,StatEq,zt;Guess=false)
         Eold=zeros(n_i,T)
 
         if permanent==1
-            r=range(0,1,length=T+1)
+            step=range(0,1,length=T+1)
             for i_i in 1:n_i
                 for t in 1:T
-                    Iold[i_i,t]=I0*(1-r[t])+Iss*r[t]
-                    Eold[i_i,t]=E0*(1-r[t])+Ess*r[t]
+                    Iold[i_i,t]=I0*(1-step[t])+Iss*step[t]
+                    Eold[i_i,t]=E0*(1-step[t])+Ess*step[t]
                 end
             end
         elseif permanent==0
-            for t in 1:T
-                Iold[:,t]=I0
-                Eold[:,t]=E0
-            end
 
-            for i_i in 1:n_i
-                if zt[i_i,2]<zt[i_i,1]
-                    shocki=i_i
-                end
-            end
-            Iold[shocki,2]=0.7*I0[shocki]
-            Eold[shocki,2]=0.7*E0[shocki]
-            r=range(0,1,length=T)
+            Iold[:,1]=I0
+            Eold[:,1]=E0
+
+
+            Iold[i_shock,2]=0.7*I0[i_shock]
+            Eold[i_shock,2]=0.7*E0[i_shock]
+            step=range(0,1,length=T)
             for t in 3:T
-                Iold[shocki,t]=Iold[shocki,2]*(1-r[t-1])+Iss*r[t-1]
-                Eold[shocki,t]=Eold[shocki,2]*(1-r[t-1])+Ess*r[t-1]
+                Iold[i_shock,t]=Iold[i_shock,2]*(1-step[t-1])+Iss[i_shock]*step[t-1]
+                Eold[i_shock,t]=Eold[i_shock,2]*(1-step[t-1])+Ess[i_shock]*step[t-1]
             end
         end
 
@@ -84,33 +70,16 @@ function Transition(grids,StatEq,zt;Guess=false)
     wages(Y,z,i,e)=((1/n_i)*γ*Y^(1/ν)*z^(1-(1/ν))*i^(γ*(1-(1/ν))-1)*e^((1-γ)*(1-(1/ν))),
                         (1/n_i)*(1-γ)*Y^(1/ν)*z^(1-(1/ν))*i^(γ*(1-(1/ν)))*e^((1-γ)*(1-(1/ν))-1))
 
-    wt=zeros(n_i,n_s,T)
-    for t in 1:T
-        Y=0
-        y=zeros(n_i)
-        for i_i in 1:n_i
-            y[i_i]=z[i_i]*E_I[i_i]^γ*E_E[i_i]^(1-γ)
-            Y+=(1/n_i)*y[i_i]^((ν-1)/ν)
-        end
-        Y=Y^(ν/(ν-1))
-
-        for i_i in 1:n_i
-            for s_i in 1:n_s
-                if t<shockdur
-                    z=zt[i_i,t+1]
-                else
-                    z=zt[i_i,end]
-                end
-                wt[i_i,s_i,t]=wages(Y,z,Iold[i_i,t],Eold[i_i,t])
-            end
-        end
-    end
 
     @eval @everywhere wt=$wt
 
     nstates=length(Φss)
     nstates_E=length(V_Ess)
     nstates_U=length(V_Uss)
+    nsvars_E=4
+    ngrids_vars_E=[n_i,n_s,n_a,n_μ]
+    nsvars_U=3
+    ngrids_vars_U=[n_i,n_s,n_a]
 
     statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
     for v in 1:nsvars_E
@@ -123,8 +92,11 @@ function Transition(grids,StatEq,zt;Guess=false)
         statestogrid_U[n_a+(i_i-1)*n_a+1:n_a+i_i*n_a,:]=hcat(i_i*ones(n_a,1),2*ones(n_a,1),1:n_a)
     end
 
+    statestogrid=[hcat(ones(Int64,size(statestogrid_E,1),1),statestogrid_E);hcat(2*ones(Int64,size(statestogrid_U,1),1),statestogrid_U,ones(Int64,size(statestogrid_U,1),1))]
+
     @eval @everywhere statestogrid_E=$statestogrid_E
     @eval @everywhere statestogrid_U=$statestogrid_U
+    @eval @everywhere statestogrid=$statestogrid
 
     V_E=SharedArray{Float64}(nstates_E,T)
     V_U=SharedArray{Float64}(nstates_U,T)
@@ -139,8 +111,8 @@ function Transition(grids,StatEq,zt;Guess=false)
     pol_a_E=zeros(nstates_E,T)
     pol_a_U=zeros(nstates_U,T)
 
-    J=zeros(nstates_E,T)
-    θ=zeros(nstates_E,T)
+    J=SharedArray{Float64}(nstates_E,T)
+    θ=SharedArray{Float64}(nstates_E,T)
 
     Φ=zeros(length(Φss),T)
 
@@ -151,10 +123,38 @@ function Transition(grids,StatEq,zt;Guess=false)
 
     @everywhere u(c)=if c>0 c^(1-σ)/(1-σ) else -Inf end
     @everywhere p(θ)=min(m*θ^(1-ξ),1)
+    @everywhere q_inv(y)=(y/m)^(-1/ξ)
 
     error=1000
 
     while error>ϵ
+
+        wt=zeros(n_i,n_s,T)
+        for t in 1:T
+            Y=0
+            y=zeros(n_i)
+            for i_i in 1:n_i
+                if t<shockdur
+                    z=zt[i_i,t]
+                else
+                    z=zt[i_i,end]
+                end
+                y[i_i]=z*Iold[i_i,t]^γ*Eold[i_i,t]^(1-γ)
+                Y+=(1/n_i)*y[i_i]^((ν-1)/ν)
+            end
+            Y=Y^(ν/(ν-1))
+
+            for i_i in 1:n_i
+                for s_i in 1:n_s
+                    if t<shockdur
+                        z=zt[i_i,t]
+                    else
+                        z=zt[i_i,end]
+                    end
+                    wt[i_i,s_i,t]=wages(Y,z,Iold[i_i,t],Eold[i_i,t])[s_i]
+                end
+            end
+        end
 
         V_E=SharedArray{Float64}(nstates_E,T)
         V_U=SharedArray{Float64}(nstates_U,T)
@@ -165,6 +165,9 @@ function Transition(grids,StatEq,zt;Guess=false)
         pol_μ_U=SharedArray{Int64}(nstates_U,n_i,T)
         pol_σ_E=SharedArray{Float64}(nstates_E,T)
         pol_σ_U=SharedArray{Float64}(nstates_E,n_i,T)
+
+        J=SharedArray{Float64}(nstates_E,T)
+        θ=SharedArray{Float64}(nstates_E,T)
 
 
         for t in T:-1:1
@@ -225,7 +228,6 @@ function Transition(grids,StatEq,zt;Guess=false)
                         V_E[ind,t]=-opt.minimum
                     end
                 end
-
             end
 
 
@@ -269,18 +271,18 @@ function Transition(grids,StatEq,zt;Guess=false)
             end
 
             if t==T
-                pol_σ_E_old=pol_a_Ess
+                pol_σ_E_old=pol_σ_Ess
                 J_old=Jss
             else
-                pol_σ_E_old=pol_σ_E_old[:,t+1]
-                J_old=Jss[:,t+1]
+                pol_σ_E_old=pol_σ_E[:,t+1]
+                J_old=J[:,t+1]
             end
 
-            for ind in eachindex(J[:,t])
-                μ_i=statestogrid[ind,4]
-                a_i=statestogrid[ind,3]
-                s_i=statestogrid[ind,2]
-                i_i=statestogrid[ind,1]
+            @sync @distributed for ind in eachindex(J[:,t])
+                μ_i=statestogrid_E[ind,4]
+                a_i=statestogrid_E[ind,3]
+                s_i=statestogrid_E[ind,2]
+                i_i=statestogrid_E[ind,1]
 
                 wage=wt[i_i,s_i,t]
                 a1=pol_a_E[ind]
@@ -307,7 +309,7 @@ function Transition(grids,StatEq,zt;Guess=false)
                 end
             end
 
-            for ind in eachindex(θ[:,t])
+            @sync @distributed for ind in eachindex(θ[:,t])
                 θ[ind,t]=q_inv(κ/J[ind,t])
             end
 
@@ -372,15 +374,18 @@ function Transition(grids,StatEq,zt;Guess=false)
                     end
                 end
             end
+            println("Value function computed for t=",t)
         end
 
         Φ[:,1]=Φ0
 
+        pol_a_Ei=zeros(Int64,nstates_E,T)
+        pol_a_Ui=zeros(Int64,nstates_U,T)
+
         for t in 1:T
-            pol_a_Ei,pol_a_Ui=transformPola(pol_a_E[:,t],pol_a_U[:,t],grids)
+            pol_a_Ei[:,t],pol_a_Ui[:,t]=transformPola(pol_a_E[:,t],pol_a_U[:,t],grids)
         end
 
-        # pol_a needs to be changed from values to indices
 
         for t in 1:T
             # Construct Transition matrix
@@ -481,6 +486,7 @@ function Transition(grids,StatEq,zt;Guess=false)
                 end
                 U_I[t]=sum(Φ[n_i*n_s*n_a*n_μ+1:n_i*n_s*n_a*n_μ+n_a,t])
             end
+            println("Distribution computed for t=",t)
         end
 
         errors=[maximum(abs.(I-Iold));maximum(abs.(E-Eold))]

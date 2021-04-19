@@ -9,6 +9,7 @@ cd(path)
 
 include(path*"ValueFunctionsIterationParallel.jl")
 include(path*"StationaryEquilibriumParallel.jl")
+include(path*"TransitionParallel.jl")
 include(path*"AnalyzingResults.jl")
 
 @everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim
@@ -56,7 +57,7 @@ end
 
 n_a=50
 nGrids_a=[n_a,100,200]
-n_anew=1500 #nGrids_a[end]
+n_anew=800 #nGrids_a[end]
 
 
 if PE==1
@@ -98,4 +99,17 @@ if PE==1
 
 elseif PE==0
     pol_val_functions,Φ,Y,E_I,E_E,U_I,U_E=GeneralEquilibrium(z)
+    (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 end
+
+zt=zeros(2,16)
+zt[:,1]=[0.8;1.0]
+for t in 2:15
+    zt[:,t]=0.2*[1;1]+0.8*zt[:,t-1]
+end
+zt[:,16]=[1.0;1.0]
+
+# WANT THE TRANSITION TO EXPLORE INTERPOLATION SO THAT ONE CAN USE LOWER NUMBER OF GRID POINTS
+
+#StatEq=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E_I,E_E,U_I,U_E)
+#NewI,NewE,NewU_I,NewU_E=Transition(grids,StatEq,zt;Guess=false)

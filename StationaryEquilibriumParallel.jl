@@ -159,7 +159,7 @@ end
 
 function GeneralEquilibrium(z)
 
-    n_anew=1500 #nGrids_a[end]
+    n_anew=800 #nGrids_a[end]
 
     if maximum(z[2:end]-z[1:end-1])!=0
         diffz=true

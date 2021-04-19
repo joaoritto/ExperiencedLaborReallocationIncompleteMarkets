@@ -259,7 +259,13 @@ end
 function JFunctionIter(grids,w,policyfunctions_W; Jguess=false,tol=false)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
+    @eval @everywhere grid_a=$grid_a
+    @eval @everywhere grid_μ=$grid_μ
+
     (pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)=policyfunctions_W
+
+    @eval @everywhere pol_a_E=$pol_a_E
+
     if tol==false
         ϵ=1e-6
     else
@@ -268,16 +274,21 @@ function JFunctionIter(grids,w,policyfunctions_W; Jguess=false,tol=false)
 
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
 
+    @eval @everywhere n_i=$n_i
+    @eval @everywhere n_s=$n_s
+    @eval @everywhere n_a=$n_a
+    @eval @everywhere n_μ=$n_μ
 
     nstates=n_μ*n_a*n_s*n_i
     nsvars=4
     ngrids_vars=[n_i,n_s,n_a,n_μ]
 
-
     statestogrid=zeros(Int64,nstates,nsvars)
     for v in 1:nsvars
         statestogrid[:,v]=kron(ones(prod(ngrids_vars[1:v-1]),1),kron(1:ngrids_vars[v],ones(prod(ngrids_vars[v+1:nsvars]),1)))
     end
+
+    @eval @everywhere statestogrid=$statestogrid
 
     if Jguess==false
         J_old=zeros(nstates)
@@ -286,13 +297,17 @@ function JFunctionIter(grids,w,policyfunctions_W; Jguess=false,tol=false)
         J_old[:]=Jguess
     end
 
-    J=zeros(nstates)
+    J=SharedArray{Float64}(nstates)
 
     error=1000
     iter=0
     while error>ϵ
         iter+=1
-        for ind in eachindex(J)
+
+        J=SharedArray{Float64}(nstates)
+        @eval @everywhere J_old=$J_old
+
+        @sync @distributed for ind in eachindex(J)
             μ_i=statestogrid[ind,4]
             a_i=statestogrid[ind,3]
             s_i=statestogrid[ind,2]
