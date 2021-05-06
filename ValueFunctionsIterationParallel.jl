@@ -67,7 +67,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
     pol_σ_U=SharedArray{Float64}(nstates_U,n_i)
 
 
-    @everywhere u(c)=if c>0 c^(1-σ)/(1-σ) else -Inf end
+    @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere p(θ)=min(m*θ^(1-ξ),1)
     error=1000
 
@@ -354,7 +354,8 @@ function ValueFunctions(grids,w;Guess=false)
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
 
-    q_inv(y)=(y/m)^(-1/ξ)
+    q_inv(y)=if y>1 0.0 else (y/m)^(-1/ξ) end
+    #q_inv(y)=(y/m)^(-1/ξ)
 
     θ=zeros(n_μ*n_a*n_s*n_i)
     if Guess==false
@@ -366,6 +367,8 @@ function ValueFunctions(grids,w;Guess=false)
         Vfunctions=(V_E_old,V_U_old,W_E_old,W_U_old)
         policyfunctions=(pol_a_E_old,pol_a_U_old,pol_μ_U_old,pol_σ_E_old,pol_σ_U_old)
     end
+
+    dampening=0.5
 
 
     ϵ=1e-6
@@ -387,7 +390,11 @@ function ValueFunctions(grids,w;Guess=false)
 
         error=maximum((J-J_old).^2)
         println("iter ",iter," in outward loop, error of ",error)
-        J,J_old=J_old,J
+        if dampening==0.0
+            J,J_old=J_old,J
+        else
+            J_old=dampening*J_old+(1-dampening)*J
+        end
     end
     J,J_old=J_old,J
 
@@ -401,13 +408,16 @@ function ValueFunctions(grids,w;Guess=false)
 end
 
 
-function transformVPolFunctions(pol_val_functions,grids0,grid_a1)
+@everywhere function transformVPolFunctions(pol_val_functions,grids0,grid_a1)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids0
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
     n_anew=length(grid_a1)
 
+
     (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+
+
 
     nstates_E=n_μ*n_anew*n_s*n_i
     ngrids_vars_E=[n_i,n_s,n_anew,n_μ]
@@ -504,7 +514,6 @@ function multigrid(nGrids_a,w)
         grids=(grid_i,grid_s,grid_a,grid_μ)
 
         V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,w; Guess=pol_val_functions_int)
-
         pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)
 
         if j<length(nGrids_a)
@@ -517,10 +526,11 @@ function multigrid(nGrids_a,w)
     return pol_val_functions
 end
 
-function transformPola(pol_a_E,pol_a_U,grids)
+@everywhere function transformPola(pol_a_E,pol_a_U,grids)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
+
 
     nstates_E=n_μ*n_a*n_s*n_i
     ngrids_vars_E=[n_i,n_s,n_a,n_μ]
