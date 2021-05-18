@@ -10,38 +10,38 @@ cd(path)
 include(path*"ValueFunctionsIterationParallel.jl")
 include(path*"StationaryEquilibriumParallel.jl")
 include(path*"TransitionParallel2.jl")
-#include(path*"AnalyzingResults.jl")
+include(path*"AnalyzingResults.jl")
 
 @everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim,StatsBase
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
-PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
+PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
+small_grid=1
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
-# Calibration of 2 months
-# NEED JOB FINDING PROBABILITIES TO BE MUCH LOWER IN SUBMARKETS (FOR EXPERIENCED)
+# Calibration (1 period=2 months)
 
 # Parameters
 @everywhere β=0.9935 # Discount factor
-@everywhere σ=1.5  # Inverse IES
-@everywhere ρ=0.05/6 # Exogenous separation
-@everywhere δ=0.04/6 # Separation with loss of skill
+@everywhere σ=2.0  # Inverse IES
+@everywhere ρ=0.032 # Exogenous separation
+@everywhere δ=0.005 # Separation with loss of skill
 @everywhere α=0.08/6 # Probability of becoming skilled
-@everywhere b=0.12 # Unemployment benefits; b > -̲a*r or c<0 at lowest wealth - Calibrate for ratio to wage
-@everywhere σ_ϵ=0.3 # s.d. of taste shocks
+@everywhere b=0.22 # Unemployment benefits; b > -̲a*r or c<0 at lowest wealth - Calibrate for ratio to wage
+@everywhere σ_ϵ=0.1 # s.d. of taste shocks
 @everywhere ξ=0.5 # Unemployed share in matching technology
 @everywhere m=0.48 # Productivity of matching technology
-@everywhere κ=0.15 # Vacancy cost - Calibrate to get unemployment rate
+@everywhere κ=0.35 # Vacancy cost - Calibrate to get unemployment rate
 @everywhere γ=0.2 # Productivity share of inexperienced workers
-@everywhere ν=1.5 # Elasticity of substitution between intermediate goods
+@everywhere ν=2.0 # Elasticity of substitution between intermediate goods
 
-@everywhere a_min=-5.0
+@everywhere a_min=-2.5
 @everywhere a_max=30
 
 # Prices
 if PE==1
-    @everywhere w=[0.36932 0.686273; 0.36932 0.686273]
+    @everywhere w=[0.41054 0.66838; 0.41054 0.66838]
 end
 @everywhere r=0.015/6
 
@@ -56,8 +56,14 @@ end
 @everywhere grid_s=1:n_s
 @everywhere grid_μ=LinRange(0.7,1-1e-2,n_μ)
 
-n_a=50
-nGrids_a=[n_a,100,200]
+if small_grid==1
+    n_a=10
+    nGrids_a=[n_a,20,50]
+else
+    n_a=50
+    nGrids_a=[n_a,100,200]
+end
+
 n_anew=1500 #nGrids_a[end]
 
 
@@ -103,25 +109,45 @@ elseif PE==0
     (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 end
 
+# Computing unemployment duration
+# Simulation??
+
+
 #=
-zt=2*ones(2,3)
+###################################################
+#           Transition Exercises
+###################################################
+
+# 1) Transitory shock, 3 periods (6 months)
+# 2) Persistent shock, 9 periods (1.5 years)
+# 3) Permanent shock, new stationary eq
+
+shockdur=9
+zt=z*ones(1,shockdur+1)
 zt[:,1]=[1.8;2.0]
-for t in 2:2
-    zt[:,t]=0.1*[2;2]+0.9*zt[:,t-1]
+for t in 2:shockdur
+    zt[:,t]=zt[:,1]
 end
-zt[:,3]=[2.0;2.0]
 
 
 grid_a=LinRange(a_min,a_max,n_anew)
 grids=(grid_i,grid_s,grid_a,grid_μ)
 
 StatEq=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E_I,E_E,U_I,U_E)
-NewI,NewE,NewU_I,NewU_E,pol_val_results=Transition(grids,StatEq,zt;Guess=false)
+NewI,NewE,NewU_I,NewU_E,pol_val_results=Transition(grids,StatEq,zt)
+
+
+aggregates_transition=(NewI,NewE,NewU_I,NewU_E)
+
+
+PlotResultsStatEq(grids,StatEq)
+PlotResultsTransition(grids,zt,pol_val_results,aggregates_transition)
+
+(V_E_Tr,V_U_Tr,W_E_Tr,W_U_Tr,pol_a_Ei_Tr,pol_a_Ui_Tr,pol_μ_U_Tr,pol_σ_E_Tr,pol_σ_U_Tr,J_Tr,θ_Tr,Φ_Tr)=pol_val_results
+
+plot(pol_σ_U_Tr[1501:3000,1,1:5])
+plot!(pol_σ_U_Tr[1501:3000,1,end])
+
+plot(p.(θ_Tr[150000+501:150000+600,1:3]),legend=false)
+plot!(p.(θ_Tr[150000+501:150000+600,end]),legend=false)
 =#
-
-#aggregates_transition=(NewI,NewE,NewU_I,NewU_E)
-
-#x=1:10
-
-#newzt=2*ones(2,10)
-#newzt[:,1:3]=zt

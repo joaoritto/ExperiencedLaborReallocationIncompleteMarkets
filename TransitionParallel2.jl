@@ -20,7 +20,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
     shockdur=size(zt,2)
     ϵ=2e-4
-    wupdate=0.05
+    wupdate=0.02
 
 
     if permanent==1
@@ -36,7 +36,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
 
     if Guess==false
-        T=25 #shockdur*2
+        T=22 #shockdur*2
         Iold=Iss*ones(1,T)
         Eold=Ess*ones(1,T)
 
@@ -55,10 +55,10 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
             end
 
 
-            Iold[i_shock,2]=0.98*I0[i_shock]
-            Eold[i_shock,2]=0.98*E0[i_shock]
-            step_aux=range(0,1,length=5)
-            for t in 3:5
+            Iold[i_shock,2]=0.95*I0[i_shock]
+            Eold[i_shock,2]=0.95*E0[i_shock]
+            step_aux=range(0,1,length=min(ceil(Int64,shockdur*1.5),T))
+            for t in 3:min(ceil(Int64,shockdur*1.5),T)
                 Iold[i_shock,t]=Iold[i_shock,2]*(1-step_aux[t-1])+Iss[i_shock]*step_aux[t-1]
                 Eold[i_shock,t]=Eold[i_shock,2]*(1-step_aux[t-1])+Ess[i_shock]*step_aux[t-1]
             end
@@ -153,7 +153,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
     U_I=zeros(T)
     U_E=zeros(n_i,T)
 
-    @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ)+5 else -Inf end
+    @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere p(θ)=min(m*θ^(1-ξ),1)
     @everywhere q_inv(y)=if y>1 0.0 else (y/m)^(-1/ξ) end
 
@@ -162,16 +162,18 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
     p0=plot(1:T,Iold')
     plot!(1:T,Eold')
     display(p0)
-    ΦT=false
+    ΦT=zeros(length(Φss))
     iter=0
 
     while error>ϵ
         iter+=1
 
-        if iter>=10
-            wupdate=0.07
+        if iter>=25
+            wupdate=0.04
+        elseif iter>=15
+            wupdate=0.02
         elseif iter>=5
-            wupdate=0.07
+            wupdate=0.02
         end
 
         wt=zeros(n_i,n_s,T)
@@ -304,8 +306,10 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                     end
                 elseif s_i==2
                     interp_W_U=LinearInterpolation(grid_a_aux,W_U_old[i_i*n_a_aux+1:(i_i+1)*n_a_aux];extrapolation_bc=Line())
+                    interp_W_Ui=LinearInterpolation(grid_a_aux,W_U_old[1:n_a_aux];extrapolation_bc=Line())
 
-                    Veval_e(a1)=-(u((1+r)*grid_a0[a_i]+b-a1[1])+β*interp_W_U(a1[1]))
+
+                    Veval_e(a1)=-(u((1+r)*grid_a0[a_i]+b-a1[1])+β*((1-δ)*interp_W_U(a1[1])+δ*interp_W_Ui(a1[1])))
 
                     a_guess=[grid_a0[a_i]+1e-2]
 
@@ -411,12 +415,14 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                         for μ1_i in 1:n_μ
                             if i1_i==i_i
                                 s1_i=2
+                                stu=i1_i*n_a0+a_i
                             else
                                 s1_i=1
+                                stu=a_i
                             end
                             ste=[i1_i-1,s1_i-1,a_i-1,μ1_i]'*[n_s*n_a0*n_μ,n_a0*n_μ,n_μ,1]
                             prob=p(θaux[ste,t])
-                            Val_temp[μ1_i]=prob*V_Eaux[ste,t]+(1-prob)*V_Uaux[ind,t]
+                            Val_temp[μ1_i]=prob*V_Eaux[ste,t]+(1-prob)*V_Uaux[stu,t]
                         end
                         V_job_s[ind,i1_i],pol_μ_Uaux[ind,i1_i,t]=findmax(Val_temp)
                     end
@@ -447,7 +453,6 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
         for t in 1:T
             # Construct Transition matrix
-            #Tr=spzeros(nstates,nstates)
 
             i=Int64[]
             j=Int64[]
@@ -486,12 +491,6 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                         push!(k,(1-ρ)*α*(1-pol_σ_E[ind1_e1,t]))
 
 
-                    #    Tr[ind,ind1_e0]=(1-ρ)*(1-α)*pol_σ_E[ind1_e0,t]
-                    #    Tr[ind,ind1_u0]=(1-ρ)*(1-α)*(1-pol_σ_E[ind1_e0,t])+ρ
-                    #    Tr[ind,ind1_e1]=(1-ρ)*α*pol_σ_E[ind1_e1,t]
-                    #    Tr[ind,ind1_u1]=(1-ρ)*α*(1-pol_σ_E[ind1_e1,t])
-
-
                     elseif s_i==2
                         ind1_e=[i_i-1,s_i-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
                         ind1_u1=n_i*n_s*n_a*n_μ+i_i*n_a+a1_i
@@ -509,12 +508,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                         push!(j,ind1_u0)
                         push!(k,δ)
 
-                    #    Tr[ind,ind1_e]=(1-ρ)*pol_σ_E[ind1_e,t]
-                    #    Tr[ind,ind1_u1]=(1-ρ)*(1-pol_σ_E[ind1_e,t])+ρ-δ
-                    #    Tr[ind,ind1_u0]=δ
-
                     end
-
 
                 elseif e_i==2
 
@@ -543,11 +537,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                             push!(j,ind1_u[i1_i])
                             push!(k,pol_σ_U[a1_i,i1_i,t]*(1-p(θ[ind1_e[i1_i],t])))
 
-                        #    Tr[ind,ind1_e[i1_i]]=pol_σ_U[a1_i,i1_i,t]*p(θ[ind1_e[i1_i],t])
-                        #    Tr[ind,ind1_u[i1_i]]+=pol_σ_U[a1_i,i1_i,t]*(1-p(θ[ind1_e[i1_i],t]))
                         end
-
-
 
                     elseif s_i==2
 
@@ -562,14 +552,24 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
                             push!(i,ind)
                             push!(j,ind1_e[i1_i])
-                            push!(k,pol_σ_U[i_i*n_a+a1_i,i1_i,t]*p(θ[ind1_e[i1_i],t]))
+                            push!(k,(1-δ)*pol_σ_U[i_i*n_a+a1_i,i1_i,t]*p(θ[ind1_e[i1_i],t]))
 
                             push!(i,ind)
                             push!(j,ind1_u[i1_i])
-                            push!(k,pol_σ_U[i_i*n_a+a1_i,i1_i,t]*(1-p(θ[ind1_e[i1_i],t])))
+                            push!(k,(1-δ)*pol_σ_U[i_i*n_a+a1_i,i1_i,t]*(1-p(θ[ind1_e[i1_i],t])))
 
-                        #    Tr[ind,ind1_e[i1_i]]=pol_σ_U[i_i*n_a+a1_i,i1_i,t]*p(θ[ind1_e[i1_i],t])
-                        #    Tr[ind,ind1_u[i1_i]]+=pol_σ_U[i_i*n_a+a1_i,i1_i,t]*(1-p(θ[ind1_e[i1_i],t]))
+
+                            ind1_u[i1_i]=n_i*n_s*n_a*n_μ+a1_i
+                            ind1_e[i1_i]=[i1_i-1,1-1,a1_i-1,pol_μ_U[a1_i,i1_i,t]]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+
+                            push!(i,ind)
+                            push!(j,ind1_e[i1_i])
+                            push!(k,δ*pol_σ_U[a1_i,i1_i,t]*p(θ[ind1_e[i1_i],t]))
+
+                            push!(i,ind)
+                            push!(j,ind1_u[i1_i])
+                            push!(k,δ*pol_σ_U[a1_i,i1_i,t]*(1-p(θ[ind1_e[i1_i],t])))
+
                         end
                     end
                 end
@@ -601,6 +601,12 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
         end
 
         errors=[maximum(abs.(I-Iold));maximum(abs.(E-Eold))]
+        if maximum(errors)>error
+            println("Solution was diverging")
+            pol_val_results=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ)
+            return I,E,U_I,U_E,pol_val_results
+        end
+
         error=maximum(errors)
 
         println("error: ",error)

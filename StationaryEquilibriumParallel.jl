@@ -32,7 +32,7 @@ function ComputeDistribution(grids,pol_functions)
     statestogrid=[statestogrid_E;statestogrid_U]
 
     # Construct Transition matrix
-    #T=spzeros(nstates,nstates)
+
     i=Int64[]
     j=Int64[]
     k=Float64[]
@@ -71,13 +71,6 @@ function ComputeDistribution(grids,pol_functions)
                 push!(k,(1-ρ)*α*(1-pol_σ_E[ind1_e1]))
 
 
-
-            #    T[ind,ind1_e0]=(1-ρ)*(1-α)*pol_σ_E[ind1_e0]
-            #    T[ind,ind1_u0]=(1-ρ)*(1-α)*(1-pol_σ_E[ind1_e0])+ρ
-            #    T[ind,ind1_e1]=(1-ρ)*α*pol_σ_E[ind1_e1]
-            #    T[ind,ind1_u1]=(1-ρ)*α*(1-pol_σ_E[ind1_e1])
-
-
             elseif s_i==2
                 ind1_e=[i_i-1,s_i-1,a1_i-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
                 ind1_u1=n_i*n_s*n_a*n_μ+i_i*n_a+a1_i
@@ -94,12 +87,6 @@ function ComputeDistribution(grids,pol_functions)
                 push!(i,ind)
                 push!(j,ind1_u0)
                 push!(k,δ)
-
-
-            #    T[ind,ind1_e]=(1-ρ)*pol_σ_E[ind1_e]
-            #    T[ind,ind1_u1]=(1-ρ)*(1-pol_σ_E[ind1_e])+ρ-δ
-            #    T[ind,ind1_u0]=δ
-
             end
 
 
@@ -129,9 +116,6 @@ function ComputeDistribution(grids,pol_functions)
                     push!(i,ind)
                     push!(j,ind1_u[i1_i])
                     push!(k,pol_σ_U[a1_i,i1_i]*(1-p(θ[ind1_e[i1_i]])))
-
-                #    T[ind,ind1_e[i1_i]]=pol_σ_U[a1_i,i1_i]*p(θ[ind1_e[i1_i]])
-                #    T[ind,ind1_u[i1_i]]+=pol_σ_U[a1_i,i1_i]*(1-p(θ[ind1_e[i1_i]]))
                 end
 
 
@@ -149,14 +133,22 @@ function ComputeDistribution(grids,pol_functions)
 
                     push!(i,ind)
                     push!(j,ind1_e[i1_i])
-                    push!(k,pol_σ_U[i_i*n_a+a1_i,i1_i]*p(θ[ind1_e[i1_i]]))
+                    push!(k,(1-δ)*pol_σ_U[i_i*n_a+a1_i,i1_i]*p(θ[ind1_e[i1_i]]))
 
                     push!(i,ind)
                     push!(j,ind1_u[i1_i])
-                    push!(k,pol_σ_U[i_i*n_a+a1_i,i1_i]*(1-p(θ[ind1_e[i1_i]])))
+                    push!(k,(1-δ)*pol_σ_U[i_i*n_a+a1_i,i1_i]*(1-p(θ[ind1_e[i1_i]])))
 
-                #    T[ind,ind1_e[i1_i]]=pol_σ_U[i_i*n_a+a1_i,i1_i]*p(θ[ind1_e[i1_i]])
-                #    T[ind,ind1_u[i1_i]]+=pol_σ_U[i_i*n_a+a1_i,i1_i]*(1-p(θ[ind1_e[i1_i]]))
+                    ind1_u[i1_i]=n_i*n_s*n_a*n_μ+a1_i
+                    ind1_e[i1_i]=[i1_i-1,1-1,a1_i-1,pol_μ_U[a1_i,i1_i]]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+
+                    push!(i,ind)
+                    push!(j,ind1_e[i1_i])
+                    push!(k,δ*pol_σ_U[a1_i,i1_i]*p(θ[ind1_e[i1_i]]))
+
+                    push!(i,ind)
+                    push!(j,ind1_u[i1_i])
+                    push!(k,δ*pol_σ_U[a1_i,i1_i]*(1-p(θ[ind1_e[i1_i]])))
                 end
             end
         end
@@ -225,7 +217,7 @@ function GeneralEquilibrium(z)
         diffz=false
     end
 
-    ϵ=1e-5
+    ϵ=2e-5
 
     function Y_CES(z,I,E)
         Y=0
@@ -240,8 +232,8 @@ function GeneralEquilibrium(z)
 
     Iiter=0
 
-    IL=0.15893482176159193-0.05 #0.2
-    IU=0.15893482176159193+0.05 #0.35
+    IL=0.13580040549818614-0.001 #0.2
+    IU=0.13580040549818614+0.001 #0.35
     Ierr=1000
 
     Is=false
@@ -260,8 +252,8 @@ function GeneralEquilibrium(z)
 
         Eiter=0
 
-        EL=0.3159127400469232-0.05 # 0.05
-        EU=min(0.3159127400469232+0.05,1/n_i-Id[1])  #min(1/n_i-Id[1],0.25)
+        EL=0.33360935180796547-0.001 # 0.05
+        EU=min(0.33360935180796547+0.001,1/n_i-Id[1])  #min(1/n_i-Id[1],0.25)
         Eerr=1000
 
         while Eerr>ϵ && Eiter<10
@@ -327,5 +319,5 @@ function GeneralEquilibrium(z)
         Ierr=abs(Ierr)
     end
 
-    return pol_val_functions,Φ,Y,Id,Ed,U_I,U_E
+    return pol_val_functions,Φ,Y,Is,Es,U_I,U_E
 end

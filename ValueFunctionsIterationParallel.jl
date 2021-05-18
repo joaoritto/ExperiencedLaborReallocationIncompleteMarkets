@@ -158,8 +158,9 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
                 end
             elseif s_i==2
                 interp_W_U=LinearInterpolation(grid_a,W_U_old[i_i*n_a+1:(i_i+1)*n_a];extrapolation_bc=Line())
+                interp_W_Ui=LinearInterpolation(grid_a,W_U_old[1:n_a];extrapolation_bc=Line())
 
-                Veval_e(a1)=-(u((1+r)*grid_a[a_i]+b-a1[1])+β*interp_W_U(a1[1]))
+                Veval_e(a1)=-(u((1+r)*grid_a[a_i]+b-a1[1])+β*((1-δ)*interp_W_U(a1[1])+δ*interp_W_Ui(a1[1])))
 
                 a_guess=[grid_a[a_i]+1e-2]
 
@@ -221,12 +222,15 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
                     for μ1_i in 1:n_μ
                         if i1_i==i_i
                             s1_i=2
+                            stu=i1_i*n_a+a_i
                         else
                             s1_i=1
+                            stu=a_i
                         end
                         ste=[i1_i-1,s1_i-1,a_i-1,μ1_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+
                         prob=p(θ[ste])
-                        Val_temp[μ1_i]=prob*V_E[ste]+(1-prob)*V_U[ind]
+                        Val_temp[μ1_i]=prob*V_E[ste]+(1-prob)*V_U[stu]
                     end
                     V_job_s[ind,i1_i],pol_μ_U[ind,i1_i]=findmax(Val_temp)
                 end

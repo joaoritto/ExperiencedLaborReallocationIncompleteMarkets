@@ -1,6 +1,6 @@
 
 
-function PlotResultsStatEq(grids,Stateq)
+function PlotResultsStatEq(grids,StatEq)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
@@ -164,9 +164,9 @@ function PlotResultsTransition(grids,zt,pol_val_results,aggregates_transition)
     ###############################################################
     # 3) Evolution of variables in transition for different agents
     ###############################################################
-    N=50000
-    i_agent1,s_agent1,a_agent1,μ_agent1=1,2,1,95
-    i_agent2,s_agent2,a_agent2,μ_agent2=1,2,50,95
+    N=5000
+    i_agent1,s_agent1,a_agent1,μ_agent1=1,2,5,95
+    i_agent2,s_agent2,a_agent2,μ_agent2=1,2,200,95
 
     ind_agent1=zeros(Int64,N,T+1)
     ind_agent2=zeros(Int64,N,T+1)
@@ -330,5 +330,6 @@ function PlotResultsTransition(grids,zt,pol_val_results,aggregates_transition)
 
     plot7=plot(prob_moving1,title="Probability of moving sector",titlefontsize=7)
     plot!(prob_moving2)
+    display(plot7)
 
 end
