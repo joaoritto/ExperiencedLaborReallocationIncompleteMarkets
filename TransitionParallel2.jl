@@ -20,7 +20,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
     shockdur=size(zt,2)
     ϵ=2e-4
-    wupdate=0.02
+    wupdate=0.01
 
 
     if permanent==1
@@ -36,7 +36,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
 
     if Guess==false
-        T=22 #shockdur*2
+        T=55 #shockdur*2
         Iold=Iss*ones(1,T)
         Eold=Ess*ones(1,T)
 
@@ -167,14 +167,6 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
     while error>ϵ
         iter+=1
-
-        if iter>=25
-            wupdate=0.04
-        elseif iter>=15
-            wupdate=0.02
-        elseif iter>=5
-            wupdate=0.02
-        end
 
         wt=zeros(n_i,n_s,T)
         for t in 1:T
@@ -367,7 +359,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
             end
 
             @sync @distributed for ind in eachindex(θaux[:,t])
-                θaux[ind,t]=q_inv(κ/Jaux[ind,t])
+                θaux[ind,t]=q_inv(κ/(Jaux[ind,t]-F))
             end
 
             # 1) W_E

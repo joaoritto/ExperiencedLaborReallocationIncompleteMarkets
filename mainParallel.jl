@@ -16,8 +16,8 @@ include(path*"AnalyzingResults.jl")
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
-PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
-small_grid=1
+PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
+small_grid=0
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
 # Calibration (1 period=2 months)
@@ -35,6 +35,7 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere κ=0.35 # Vacancy cost - Calibrate to get unemployment rate
 @everywhere γ=0.2 # Productivity share of inexperienced workers
 @everywhere ν=2.0 # Elasticity of substitution between intermediate goods
+@everywhere F=0.0 # Fixed cost of hiring
 
 @everywhere a_min=-2.5
 @everywhere a_max=30
@@ -113,7 +114,7 @@ end
 # Simulation??
 
 
-#=
+
 ###################################################
 #           Transition Exercises
 ###################################################
@@ -150,4 +151,3 @@ plot!(pol_σ_U_Tr[1501:3000,1,end])
 
 plot(p.(θ_Tr[150000+501:150000+600,1:3]),legend=false)
 plot!(p.(θ_Tr[150000+501:150000+600,end]),legend=false)
-=#

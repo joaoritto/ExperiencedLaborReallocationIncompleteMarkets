@@ -359,7 +359,6 @@ function ValueFunctions(grids,w;Guess=false)
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
 
     q_inv(y)=if y>1 0.0 else (y/m)^(-1/ξ) end
-    #q_inv(y)=(y/m)^(-1/ξ)
 
     θ=zeros(n_μ*n_a*n_s*n_i)
     if Guess==false
@@ -382,7 +381,7 @@ function ValueFunctions(grids,w;Guess=false)
     while error>1e-6 && iter<50
         iter+=1
         for ind in eachindex(θ)
-            θ[ind]=q_inv(κ/J_old[ind])
+            θ[ind]=q_inv(κ/(J_old[ind]-F))
         end
 
         V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIterEq(grids,w,θ,Vguess=Vfunctions,tol=1e-6)
@@ -403,7 +402,7 @@ function ValueFunctions(grids,w;Guess=false)
     J,J_old=J_old,J
 
     for ind in eachindex(θ)
-        θ[ind]=q_inv(κ/J[ind])
+        θ[ind]=q_inv(κ/(J[ind]-F))
     end
     (V_E,V_U,W_E,W_U)=Vfunctions
     (pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)=policyfunctions
