@@ -18,6 +18,7 @@ include(path*"AnalyzingResults.jl")
 
 PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
 small_grid=0
+comp_transition=1
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
 # Calibration (1 period=2 months)
@@ -32,17 +33,17 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere σ_ϵ=0.1 # s.d. of taste shocks
 @everywhere ξ=0.5 # Unemployed share in matching technology
 @everywhere m=0.48 # Productivity of matching technology
-@everywhere κ=0.35 # Vacancy cost - Calibrate to get unemployment rate
+@everywhere κ=0.15 # Vacancy cost - Calibrate to get unemployment rate
 @everywhere γ=0.2 # Productivity share of inexperienced workers
-@everywhere ν=2.0 # Elasticity of substitution between intermediate goods
-@everywhere F=0.0 # Fixed cost of hiring
+@everywhere ν=10.0 # Elasticity of substitution between intermediate goods
+@everywhere F=1.0 # Fixed cost of hiring
 
 @everywhere a_min=-2.5
 @everywhere a_max=30
 
 # Prices
 if PE==1
-    @everywhere w=[0.41054 0.66838; 0.41054 0.66838]
+    @everywhere w=[0.415371 0.666405; 0.415371 0.666405]
 end
 @everywhere r=0.015/6
 
@@ -113,41 +114,42 @@ end
 # Computing unemployment duration
 # Simulation??
 
+if comp_transition==1
+
+    ###################################################
+    #           Transition Exercises
+    ###################################################
+
+    # 1) Transitory shock, 3 periods (6 months)
+    # 2) Persistent shock, 9 periods (1.5 years)
+    # 3) Permanent shock, new stationary eq
+
+    shockdur=9
+    zt=z*ones(1,shockdur+1)
+    zt[:,1]=[1.8;2.0]
+    for t in 2:shockdur
+        zt[:,t]=zt[:,1]
+    end
 
 
-###################################################
-#           Transition Exercises
-###################################################
+    grid_a=LinRange(a_min,a_max,n_anew)
+    grids=(grid_i,grid_s,grid_a,grid_μ)
 
-# 1) Transitory shock, 3 periods (6 months)
-# 2) Persistent shock, 9 periods (1.5 years)
-# 3) Permanent shock, new stationary eq
+    StatEq=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E_I,E_E,U_I,U_E)
+    NewI,NewE,NewU_I,NewU_E,pol_val_results=Transition(grids,StatEq,zt)
 
-shockdur=9
-zt=z*ones(1,shockdur+1)
-zt[:,1]=[1.8;2.0]
-for t in 2:shockdur
-    zt[:,t]=zt[:,1]
+
+    aggregates_transition=(NewI,NewE,NewU_I,NewU_E)
+
+
+    PlotResultsStatEq(grids,StatEq)
+    PlotResultsTransition(grids,zt,pol_val_results,aggregates_transition)
+
+    (V_E_Tr,V_U_Tr,W_E_Tr,W_U_Tr,pol_a_Ei_Tr,pol_a_Ui_Tr,pol_μ_U_Tr,pol_σ_E_Tr,pol_σ_U_Tr,J_Tr,θ_Tr,Φ_Tr)=pol_val_results
+
+    plot(pol_σ_U_Tr[1501:3000,1,1:5])
+    plot!(pol_σ_U_Tr[1501:3000,1,end])
+
+    plot(p.(θ_Tr[150000+501:150000+600,1:3]),legend=false)
+    plot!(p.(θ_Tr[150000+501:150000+600,end]),legend=false)
 end
-
-
-grid_a=LinRange(a_min,a_max,n_anew)
-grids=(grid_i,grid_s,grid_a,grid_μ)
-
-StatEq=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E_I,E_E,U_I,U_E)
-NewI,NewE,NewU_I,NewU_E,pol_val_results=Transition(grids,StatEq,zt)
-
-
-aggregates_transition=(NewI,NewE,NewU_I,NewU_E)
-
-
-PlotResultsStatEq(grids,StatEq)
-PlotResultsTransition(grids,zt,pol_val_results,aggregates_transition)
-
-(V_E_Tr,V_U_Tr,W_E_Tr,W_U_Tr,pol_a_Ei_Tr,pol_a_Ui_Tr,pol_μ_U_Tr,pol_σ_E_Tr,pol_σ_U_Tr,J_Tr,θ_Tr,Φ_Tr)=pol_val_results
-
-plot(pol_σ_U_Tr[1501:3000,1,1:5])
-plot!(pol_σ_U_Tr[1501:3000,1,end])
-
-plot(p.(θ_Tr[150000+501:150000+600,1:3]),legend=false)
-plot!(p.(θ_Tr[150000+501:150000+600,end]),legend=false)

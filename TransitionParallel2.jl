@@ -36,7 +36,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
 
     if Guess==false
-        T=55 #shockdur*2
+        T=40 #shockdur*2
         Iold=Iss*ones(1,T)
         Eold=Ess*ones(1,T)
 
@@ -55,8 +55,8 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
             end
 
 
-            Iold[i_shock,2]=0.95*I0[i_shock]
-            Eold[i_shock,2]=0.95*E0[i_shock]
+            Iold[i_shock,2]=0.98*I0[i_shock]
+            Eold[i_shock,2]=0.98*E0[i_shock]
             step_aux=range(0,1,length=min(ceil(Int64,shockdur*1.5),T))
             for t in 3:min(ceil(Int64,shockdur*1.5),T)
                 Iold[i_shock,t]=Iold[i_shock,2]*(1-step_aux[t-1])+Iss[i_shock]*step_aux[t-1]
@@ -155,7 +155,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
     @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere p(θ)=min(m*θ^(1-ξ),1)
-    @everywhere q_inv(y)=if y>1 0.0 else (y/m)^(-1/ξ) end
+    @everywhere q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
 
     error=1000
 

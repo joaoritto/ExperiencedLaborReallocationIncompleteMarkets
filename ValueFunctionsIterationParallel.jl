@@ -358,11 +358,11 @@ function ValueFunctions(grids,w;Guess=false)
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
 
-    q_inv(y)=if y>1 0.0 else (y/m)^(-1/ξ) end
+    q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
 
     θ=zeros(n_μ*n_a*n_s*n_i)
     if Guess==false
-        J_old=0.5*ones(n_μ*n_a*n_s*n_i)
+        J_old=2.0*ones(n_μ*n_a*n_s*n_i)
         Vfunctions=false
         policyfunctions=false
     else
