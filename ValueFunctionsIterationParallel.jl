@@ -141,10 +141,12 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
             s_i=statestogrid_U[ind,2]
             i_i=statestogrid_U[ind,1]
 
+            ub=b*w[i_i,s_i]
+
             if s_i==1
                 interp_W_U=LinearInterpolation(grid_a,W_U_old[1:n_a];extrapolation_bc=Line())
 
-                Veval_i(a1)=-(u((1+r)*grid_a[a_i]+b-a1[1])+β*interp_W_U(a1[1]))
+                Veval_i(a1)=-(u((1+r)*grid_a[a_i]+ub-a1[1])+β*interp_W_U(a1[1]))
 
                 a_guess=[grid_a[a_i]+1e-2]
 
@@ -160,7 +162,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
                 interp_W_U=LinearInterpolation(grid_a,W_U_old[i_i*n_a+1:(i_i+1)*n_a];extrapolation_bc=Line())
                 interp_W_Ui=LinearInterpolation(grid_a,W_U_old[1:n_a];extrapolation_bc=Line())
 
-                Veval_e(a1)=-(u((1+r)*grid_a[a_i]+b-a1[1])+β*((1-δ)*interp_W_U(a1[1])+δ*interp_W_Ui(a1[1])))
+                Veval_e(a1)=-(u((1+r)*grid_a[a_i]+ub-a1[1])+β*((1-δ)*interp_W_U(a1[1])+δ*interp_W_Ui(a1[1])))
 
                 a_guess=[grid_a[a_i]+1e-2]
 
@@ -358,11 +360,33 @@ function ValueFunctions(grids,w;Guess=false)
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
 
+    nstates=n_i*n_s*n_a*n_μ+n_a+n_i*n_a
+    nsvars=5
+    ngrids_vars=[2,n_i,n_s,n_a,n_μ]
+
+    nstates_E=n_i*n_s*n_a*n_μ
+    statestogrid_E=ones(Int64,nstates_E,nsvars)
+    nstates_U=n_a+n_i*n_a
+    statestogrid_U=ones(Int64,nstates_U,nsvars)
+    for v in 1:nsvars
+        if v==1
+            statestogrid_E[:,v]=1*ones(nstates_E,1)
+        else
+            statestogrid_E[:,v]=kron(ones(prod(ngrids_vars[2:v-1]),1),kron(1:ngrids_vars[v],ones(prod(ngrids_vars[v+1:nsvars]),1)))
+        end
+    end
+    statestogrid_U[:,1]=2*ones(nstates_U,1)
+    statestogrid_U[:,2]=vcat(ones(n_a,1),kron(1:n_i,ones(n_a,1)))
+    statestogrid_U[end-2*n_a+1:end,3].=2
+    statestogrid_U[:,4]=kron(ones(n_i+1,1),1:n_a)
+
+    statestogrid=[statestogrid_E;statestogrid_U]
+
     q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
 
     θ=zeros(n_μ*n_a*n_s*n_i)
     if Guess==false
-        J_old=2.0*ones(n_μ*n_a*n_s*n_i)
+        J_old=2.5*ones(n_μ*n_a*n_s*n_i)
         Vfunctions=false
         policyfunctions=false
     else
@@ -371,7 +395,7 @@ function ValueFunctions(grids,w;Guess=false)
         policyfunctions=(pol_a_E_old,pol_a_U_old,pol_μ_U_old,pol_σ_E_old,pol_σ_U_old)
     end
 
-    dampening=0.5
+    dampening=0.75
 
 
     ϵ=1e-6
@@ -381,8 +405,18 @@ function ValueFunctions(grids,w;Guess=false)
     while error>1e-6 && iter<50
         iter+=1
         for ind in eachindex(θ)
+            s_i=statestogrid[ind,3]
+            if s_i==1
+                κ=κ_i
+                F=F_i
+            else
+                κ=κ_e
+                F=F_e
+            end
             θ[ind]=q_inv(κ/(J_old[ind]-F))
         end
+        p1=plot(p.(θ))
+        display(p1)
 
         V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIterEq(grids,w,θ,Vguess=Vfunctions,tol=1e-6)
 
@@ -402,6 +436,14 @@ function ValueFunctions(grids,w;Guess=false)
     J,J_old=J_old,J
 
     for ind in eachindex(θ)
+        s_i=statestogrid[ind,3]
+        if s_i==1
+            κ=κ_i
+            F=F_i
+        else
+            κ=κ_e
+            F=F_e
+        end
         θ[ind]=q_inv(κ/(J[ind]-F))
     end
     (V_E,V_U,W_E,W_U)=Vfunctions

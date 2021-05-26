@@ -281,10 +281,12 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                 s_i=statestogrid_U0[ind,2]
                 i_i=statestogrid_U0[ind,1]
 
+                ub=b*w[i_i,s_i]
+
                 if s_i==1
                     interp_W_U=LinearInterpolation(grid_a_aux,W_U_old[1:n_a_aux];extrapolation_bc=Line())
 
-                    Veval_i(a1)=-(u((1+r)*grid_a0[a_i]+b-a1[1])+β*interp_W_U(a1[1]))
+                    Veval_i(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*interp_W_U(a1[1]))
 
                     a_guess=[grid_a0[a_i]+1e-2]
 
@@ -301,7 +303,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                     interp_W_Ui=LinearInterpolation(grid_a_aux,W_U_old[1:n_a_aux];extrapolation_bc=Line())
 
 
-                    Veval_e(a1)=-(u((1+r)*grid_a0[a_i]+b-a1[1])+β*((1-δ)*interp_W_U(a1[1])+δ*interp_W_Ui(a1[1])))
+                    Veval_e(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*((1-δ)*interp_W_U(a1[1])+δ*interp_W_Ui(a1[1])))
 
                     a_guess=[grid_a0[a_i]+1e-2]
 
@@ -359,6 +361,14 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
             end
 
             @sync @distributed for ind in eachindex(θaux[:,t])
+                s_i=statestogrid[ind,3]
+                if s_i==1
+                    κ=κ_i
+                    F=F_i
+                else
+                    κ=κ_e
+                    F=F_e
+                end
                 θaux[ind,t]=q_inv(κ/(Jaux[ind,t]-F))
             end
 

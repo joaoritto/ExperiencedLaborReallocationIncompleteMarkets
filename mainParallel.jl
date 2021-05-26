@@ -16,9 +16,9 @@ include(path*"AnalyzingResults.jl")
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
-PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
-small_grid=0
-comp_transition=1
+PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
+small_grid=1
+comp_transition=0
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
 # Calibration (1 period=2 months)
@@ -29,14 +29,16 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere ρ=0.032 # Exogenous separation
 @everywhere δ=0.005 # Separation with loss of skill
 @everywhere α=0.08/6 # Probability of becoming skilled
-@everywhere b=0.22 # Unemployment benefits; b > -̲a*r or c<0 at lowest wealth - Calibrate for ratio to wage
+@everywhere b=0.4 # Replacement rate: Unemployment benefits; b*w > -̲a*r or c<0 at lowest wealth
 @everywhere σ_ϵ=0.1 # s.d. of taste shocks
 @everywhere ξ=0.5 # Unemployed share in matching technology
 @everywhere m=0.48 # Productivity of matching technology
-@everywhere κ=0.15 # Vacancy cost - Calibrate to get unemployment rate
+@everywhere κ_e=0.27 # Vacancy cost experienced
+@everywhere κ_i=0.14 # Vacancy cost inexperienced
 @everywhere γ=0.2 # Productivity share of inexperienced workers
 @everywhere ν=10.0 # Elasticity of substitution between intermediate goods
-@everywhere F=1.0 # Fixed cost of hiring
+@everywhere F_e=1.8 # Fixed cost of hiring experienced
+@everywhere F_i=1.4 # Fixed cost of hiring inexperienced
 
 @everywhere a_min=-2.5
 @everywhere a_max=30
