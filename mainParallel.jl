@@ -16,8 +16,8 @@ include(path*"AnalyzingResults.jl")
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
-PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
-small_grid=1
+PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
+small_grid=0
 comp_transition=0
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
@@ -33,19 +33,19 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere σ_ϵ=0.1 # s.d. of taste shocks
 @everywhere ξ=0.5 # Unemployed share in matching technology
 @everywhere m=0.48 # Productivity of matching technology
-@everywhere κ_e=0.27 # Vacancy cost experienced
-@everywhere κ_i=0.14 # Vacancy cost inexperienced
+@everywhere κ_e=0.37 # Vacancy cost experienced
+@everywhere κ_i=0.16 # Vacancy cost inexperienced
 @everywhere γ=0.2 # Productivity share of inexperienced workers
 @everywhere ν=10.0 # Elasticity of substitution between intermediate goods
-@everywhere F_e=1.8 # Fixed cost of hiring experienced
-@everywhere F_i=1.4 # Fixed cost of hiring inexperienced
+@everywhere F_e=2.5 # Fixed cost of hiring experienced
+@everywhere F_i=0.7 # Fixed cost of hiring inexperienced
 
 @everywhere a_min=-2.5
 @everywhere a_max=30
 
 # Prices
 if PE==1
-    @everywhere w=[0.415371 0.666405; 0.415371 0.666405]
+    @everywhere w=[0.40625 0.6701; 0.40625 0.6701]
 end
 @everywhere r=0.015/6
 

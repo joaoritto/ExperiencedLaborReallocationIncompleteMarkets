@@ -415,8 +415,6 @@ function ValueFunctions(grids,w;Guess=false)
             end
             θ[ind]=q_inv(κ/(J_old[ind]-F))
         end
-        p1=plot(p.(θ))
-        display(p1)
 
         V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIterEq(grids,w,θ,Vguess=Vfunctions,tol=1e-6)
 
