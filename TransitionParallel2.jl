@@ -19,8 +19,8 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
     @eval @everywhere n_a0=$n_a0
 
     shockdur=size(zt,2)
-    ϵ=2e-4
-    wupdate=0.01
+    ϵ=5e-4
+    wupdate=0.02
 
 
     if permanent==1
@@ -36,7 +36,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
 
     if Guess==false
-        T=40 #shockdur*2
+        T=25 #shockdur*2
         Iold=Iss*ones(1,T)
         Eold=Ess*ones(1,T)
 
@@ -281,7 +281,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                 s_i=statestogrid_U0[ind,2]
                 i_i=statestogrid_U0[ind,1]
 
-                ub=b*w[i_i,s_i]
+                ub=b*wt[2,s_i,end]
 
                 if s_i==1
                     interp_W_U=LinearInterpolation(grid_a_aux,W_U_old[1:n_a_aux];extrapolation_bc=Line())
@@ -361,7 +361,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
             end
 
             @sync @distributed for ind in eachindex(θaux[:,t])
-                s_i=statestogrid[ind,3]
+                s_i=statestogrid0[ind,3]
                 if s_i==1
                     κ=κ_i
                     F=F_i

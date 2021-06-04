@@ -16,8 +16,8 @@ include(path*"AnalyzingResults.jl")
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
-PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
-small_grid=0
+PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
+small_grid=1
 comp_transition=0
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
@@ -28,24 +28,24 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere σ=2.0  # Inverse IES
 @everywhere ρ=0.032 # Exogenous separation
 @everywhere δ=0.005 # Separation with loss of skill
-@everywhere α=0.08/6 # Probability of becoming skilled
-@everywhere b=0.4 # Replacement rate: Unemployment benefits; b*w > -̲a*r or c<0 at lowest wealth
+@everywhere α=0.125/6 # Probability of becoming skilled
+@everywhere b=0.45*0.85 # Replacement rate: Unemployment benefits; b*w > -̲a*r or c<0 at lowest wealth
 @everywhere σ_ϵ=0.1 # s.d. of taste shocks
 @everywhere ξ=0.5 # Unemployed share in matching technology
 @everywhere m=0.48 # Productivity of matching technology
-@everywhere κ_e=0.37 # Vacancy cost experienced
-@everywhere κ_i=0.16 # Vacancy cost inexperienced
-@everywhere γ=0.2 # Productivity share of inexperienced workers
+@everywhere κ_e=0.12 # Vacancy cost experienced
+@everywhere κ_i=0.08 # Vacancy cost inexperienced
+@everywhere γ=0.18 # Productivity share of inexperienced workers
 @everywhere ν=10.0 # Elasticity of substitution between intermediate goods
-@everywhere F_e=2.5 # Fixed cost of hiring experienced
-@everywhere F_i=0.7 # Fixed cost of hiring inexperienced
+@everywhere F_e=2.8 # Fixed cost of hiring experienced
+@everywhere F_i=1.3 # Fixed cost of hiring inexperienced
 
-@everywhere a_min=-2.5
-@everywhere a_max=30
+@everywhere a_min=0.0
+@everywhere a_max=20.0
 
 # Prices
 if PE==1
-    @everywhere w=[0.40625 0.6701; 0.40625 0.6701]
+    @everywhere w=[0.54155 0.6444; 0.54155 0.6444]
 end
 @everywhere r=0.015/6
 
@@ -58,11 +58,11 @@ end
 
 @everywhere grid_i=1:n_i
 @everywhere grid_s=1:n_s
-@everywhere grid_μ=LinRange(0.7,1-1e-2,n_μ)
+@everywhere grid_μ=LinRange(0.6,1-1e-2,n_μ)
 
 if small_grid==1
     n_a=10
-    nGrids_a=[n_a,20,50]
+    nGrids_a=[n_a,20,50,100]
 else
     n_a=50
     nGrids_a=[n_a,100,200]
