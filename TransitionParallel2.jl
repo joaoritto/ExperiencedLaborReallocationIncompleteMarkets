@@ -20,7 +20,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
     shockdur=size(zt,2)
     ϵ=5e-4
-    wupdate=0.02
+    wupdate=0.01
 
 
     if permanent==1
@@ -36,7 +36,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
 
     if Guess==false
-        T=25 #shockdur*2
+        T=50 #shockdur*2
         Iold=Iss*ones(1,T)
         Eold=Ess*ones(1,T)
 

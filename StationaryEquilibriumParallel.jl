@@ -217,7 +217,7 @@ function GeneralEquilibrium(z)
         diffz=false
     end
 
-    ϵ=2e-5
+    ϵ=1e-5
 
     function Y_CES(z,I,E)
         Y=0
@@ -232,8 +232,8 @@ function GeneralEquilibrium(z)
 
     Iiter=0
 
-    IL=0.09813159207962356-0.002 #0.2
-    IU=0.09813159207962356+0.002 #0.35
+    IL=0.09747845182084641-0.002 #0.2
+    IU=0.09747845182084641+0.002 #0.35
     Ierr=1000
 
     Is=false
@@ -252,8 +252,8 @@ function GeneralEquilibrium(z)
 
         Eiter=0
 
-        EL=0.3770852275953363-0.002 # 0.05
-        EU=min(0.3770852275953363+0.002,1/n_i-Id[1])  #min(1/n_i-Id[1],0.25)
+        EL=0.37510319861746877-0.002 # 0.05
+        EU=min(0.37510319861746877+0.002,1/n_i-Id[1])  #min(1/n_i-Id[1],0.25)
         Eerr=1000
 
         while Eerr>ϵ && Eiter<10
