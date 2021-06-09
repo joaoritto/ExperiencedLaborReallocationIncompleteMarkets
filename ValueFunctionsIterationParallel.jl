@@ -386,7 +386,7 @@ function ValueFunctions(grids,w;Guess=false)
 
     θ=zeros(n_μ*n_a*n_s*n_i)
     if Guess==false
-        J_old=2.5*ones(n_μ*n_a*n_s*n_i)
+        J_old=0.9*ones(n_μ*n_a*n_s*n_i)
         Vfunctions=false
         policyfunctions=false
     else
@@ -413,7 +413,7 @@ function ValueFunctions(grids,w;Guess=false)
                 κ=κ_e
                 F=F_e
             end
-            θ[ind]=q_inv(κ/(J_old[ind]-F))
+            θ[ind]=q_inv(κ/(J_old[ind]*(1-F)))
         end
 
         V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIterEq(grids,w,θ,Vguess=Vfunctions,tol=1e-6)
@@ -442,7 +442,7 @@ function ValueFunctions(grids,w;Guess=false)
             κ=κ_e
             F=F_e
         end
-        θ[ind]=q_inv(κ/(J[ind]-F))
+        θ[ind]=q_inv(κ/(J[ind]*(1-F)))
     end
     (V_E,V_U,W_E,W_U)=Vfunctions
     (pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)=policyfunctions

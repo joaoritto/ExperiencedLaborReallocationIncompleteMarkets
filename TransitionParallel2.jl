@@ -369,7 +369,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                     κ=κ_e
                     F=F_e
                 end
-                θaux[ind,t]=q_inv(κ/(Jaux[ind,t]-F))
+                θaux[ind,t]=q_inv(κ/(Jaux[ind,t]*(1-F)))
             end
 
             # 1) W_E
