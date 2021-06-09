@@ -45,7 +45,7 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 
 # Prices
 if PE==1
-    @everywhere w=[0.54015 0.64424; 0.54015 0.64424]
+    @everywhere w=[0.54018 0.6442396; 0.54018 0.6442396]
 end
 @everywhere r=0.015/6
 
