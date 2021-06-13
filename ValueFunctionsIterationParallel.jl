@@ -224,10 +224,10 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
                     for μ1_i in 1:n_μ
                         if i1_i==i_i
                             s1_i=2
-                            stu=i1_i*n_a+a_i
+                            stu=i_i*n_a+a_i
                         else
                             s1_i=1
-                            stu=a_i
+                            stu=i_i*n_a+a_i #a_i
                         end
                         ste=[i1_i-1,s1_i-1,a_i-1,μ1_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
 
@@ -408,12 +408,12 @@ function ValueFunctions(grids,w;Guess=false)
             s_i=statestogrid[ind,3]
             if s_i==1
                 κ=κ_i
-                F=F_i
+                F=max(F_i*J_old[ind],0.8)
             else
                 κ=κ_e
-                F=F_e
+                F=max(F_e*J_old[ind],0.8)
             end
-            θ[ind]=q_inv(κ/(J_old[ind]*(1-F)))
+            θ[ind]=q_inv(κ/(J_old[ind]-F))
         end
 
         V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIterEq(grids,w,θ,Vguess=Vfunctions,tol=1e-6)
@@ -437,12 +437,12 @@ function ValueFunctions(grids,w;Guess=false)
         s_i=statestogrid[ind,3]
         if s_i==1
             κ=κ_i
-            F=F_i
+            F=max(F_i*J[ind],0.8)
         else
             κ=κ_e
-            F=F_e
+            F=max(F_e*J[ind],0.8)
         end
-        θ[ind]=q_inv(κ/(J[ind]*(1-F)))
+        θ[ind]=q_inv(κ/(J[ind]-F))
     end
     (V_E,V_U,W_E,W_U)=Vfunctions
     (pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)=policyfunctions

@@ -35,7 +35,7 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere m=0.48 # Productivity of matching technology
 @everywhere κ_e=0.02 # Vacancy cost experienced
 @everywhere κ_i=0.02 # Vacancy cost inexperienced
-@everywhere γ=0.18 # Productivity share of inexperienced workers
+@everywhere γ=0.1842 # Productivity share of inexperienced workers
 @everywhere ν=10.0 # Elasticity of substitution between intermediate goods
 @everywhere F_e=0.95 # Fixed cost of hiring experienced
 @everywhere F_i=0.95 # Fixed cost of hiring inexperienced
@@ -45,7 +45,7 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 
 # Prices
 if PE==1
-    @everywhere w=[0.54018 0.6442396; 0.54018 0.6442396]
+    @everywhere w=[0.55354 0.63634; 0.55354 0.63634]
 end
 @everywhere r=0.015/6
 
@@ -54,11 +54,11 @@ end
 # Grids
 @everywhere n_i=2
 @everywhere n_s=2
-@everywhere n_μ=100
+@everywhere n_μ=1 #100
 
 @everywhere grid_i=1:n_i
 @everywhere grid_s=1:n_s
-@everywhere grid_μ=LinRange(0.6,1.0-1e-2,n_μ)
+@everywhere grid_μ=0.94 # LinRange(0.6,1.0-1e-2,n_μ)
 
 if small_grid==1
     n_a=20
@@ -128,7 +128,7 @@ if comp_transition==1
 
     shockdur=9
     zt=z*ones(1,shockdur+1)
-    zt[:,1]=[1.6;2.0]
+    zt[:,1]=[1.5;2.0]
     for t in 2:shockdur
         zt[:,t]=zt[:,1]
     end

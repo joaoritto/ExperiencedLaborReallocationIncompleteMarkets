@@ -127,7 +127,7 @@ function ComputeDistribution(grids,pol_functions)
                         ind1_u[i1_i]=n_i*n_s*n_a*n_μ+i1_i*n_a+a1_i
                         ind1_e[i1_i]=[i1_i-1,s_i-1,a1_i-1,pol_μ_U[i1_i*n_a+a1_i,i1_i]]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
                     else
-                        ind1_u[i1_i]=n_i*n_s*n_a*n_μ+a1_i
+                        ind1_u[i1_i]=n_i*n_s*n_a*n_μ+i_i*n_a+a1_i #a1_i
                         ind1_e[i1_i]=[i1_i-1,1-1,a1_i-1,pol_μ_U[a1_i,i1_i]]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
                     end
 
@@ -232,8 +232,8 @@ function GeneralEquilibrium(z)
 
     Iiter=0
 
-    IL=0.09736186413915911-0.002 #0.2
-    IU=0.09736186413915911+0.002 #0.35
+    IL=0.09743168048928516-0.002 #0.2
+    IU=0.09743168048928516+0.002 #0.35
     Ierr=1000
 
     Is=false
@@ -252,8 +252,8 @@ function GeneralEquilibrium(z)
 
         Eiter=0
 
-        EL=0.3718989086294532-0.002 # 0.05
-        EU=min(0.3718989086294532+0.002,1/n_i-Id[1])  #min(1/n_i-Id[1],0.25)
+        EL=0.37537359344973853-0.002 # 0.05
+        EU=min(0.37537359344973853+0.002,1/n_i-Id[1])  #min(1/n_i-Id[1],0.25)
         Eerr=1000
 
         while Eerr>ϵ && Eiter<10

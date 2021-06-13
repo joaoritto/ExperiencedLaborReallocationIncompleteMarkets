@@ -20,7 +20,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
     shockdur=size(zt,2)
     ϵ=5e-4
-    wupdate=0.01
+    wupdate=0.005
 
 
     if permanent==1
@@ -36,7 +36,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
 
 
     if Guess==false
-        T=50 #shockdur*2
+        T=250 #shockdur*2
         Iold=Iss*ones(1,T)
         Eold=Ess*ones(1,T)
 
@@ -55,10 +55,10 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
             end
 
 
-            Iold[i_shock,2]=0.98*I0[i_shock]
-            Eold[i_shock,2]=0.98*E0[i_shock]
+            Iold[i_shock,2]=0.97*I0[i_shock]
+            Eold[i_shock,2]=0.97*E0[i_shock]
             step_aux=range(0,1,length=min(ceil(Int64,shockdur*1.5),T))
-            for t in 3:min(ceil(Int64,shockdur*1.5),T)
+            for t in 3:length(step_aux) #min(ceil(Int64,shockdur*1.5),T)
                 Iold[i_shock,t]=Iold[i_shock,2]*(1-step_aux[t-1])+Iss[i_shock]*step_aux[t-1]
                 Eold[i_shock,t]=Eold[i_shock,2]*(1-step_aux[t-1])+Ess[i_shock]*step_aux[t-1]
             end
@@ -361,15 +361,24 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
             end
 
             @sync @distributed for ind in eachindex(θaux[:,t])
-                s_i=statestogrid0[ind,3]
+                μ_i=statestogrid_E0[ind,4]
+                a_i=statestogrid_E0[ind,3]
+                s_i=statestogrid_E0[ind,2]
+                i_i=statestogrid_E0[ind,1]
                 if s_i==1
+                    ind1_i=[i_i-1,s_i-1,1-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                    interp_Ji=LinearInterpolation(grid_a,Jss[ind1_i:n_μ:(ind1_i-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+                    Ji=interp_Ji(grid_a0[a_i])
                     κ=κ_i
-                    F=F_i
+                    F=max(F_i*Ji,0.8)
                 else
+                    ind1=[i_i-1,s_i-1,1-1,μ_i]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
+                    interp_J=LinearInterpolation(grid_a,Jss[ind1:n_μ:(ind1-μ_i)+n_a*n_μ];extrapolation_bc=Line())
+                    Je=interp_J(grid_a0[a_i])
                     κ=κ_e
-                    F=F_e
+                    F=max(F_e*Je,0.8)
                 end
-                θaux[ind,t]=q_inv(κ/(Jaux[ind,t]*(1-F)))
+                θaux[ind,t]=q_inv(κ/(Jaux[ind,t]-F))
             end
 
             # 1) W_E
@@ -417,10 +426,10 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                         for μ1_i in 1:n_μ
                             if i1_i==i_i
                                 s1_i=2
-                                stu=i1_i*n_a0+a_i
+                                stu=i_i*n_a0+a_i
                             else
                                 s1_i=1
-                                stu=a_i
+                                stu=i_i*n_a0+a_i #a_i
                             end
                             ste=[i1_i-1,s1_i-1,a_i-1,μ1_i]'*[n_s*n_a0*n_μ,n_a0*n_μ,n_μ,1]
                             prob=p(θaux[ste,t])
@@ -548,7 +557,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
                                 ind1_u[i1_i]=n_i*n_s*n_a*n_μ+i1_i*n_a+a1_i
                                 ind1_e[i1_i]=[i1_i-1,s_i-1,a1_i-1,pol_μ_U[i1_i*n_a+a1_i,i1_i,t]]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
                             else
-                                ind1_u[i1_i]=n_i*n_s*n_a*n_μ+a1_i
+                                ind1_u[i1_i]=n_i*n_s*n_a*n_μ+i_i*n_a+a1_i #a1_i
                                 ind1_e[i1_i]=[i1_i-1,1-1,a1_i-1,pol_μ_U[a1_i,i1_i,t]]'*[n_s*n_a*n_μ,n_a*n_μ,n_μ,1]
                             end
 
@@ -606,7 +615,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
         if maximum(errors)>error
             println("Solution was diverging")
             pol_val_results=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ)
-            return I,E,U_I,U_E,pol_val_results
+            return Iold,Eold,U_I,U_E,pol_val_results
         end
 
         error=maximum(errors)
@@ -619,7 +628,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1)
         Iold[:,T]=Iss
         Eold[:,T]=Ess
 
-        p1=plot(1:T,Iold')
+        p1=plot(1:T,Iold',legend=false)
         plot!(1:T,Eold')
         display(p1)
     end
