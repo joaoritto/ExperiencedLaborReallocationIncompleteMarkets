@@ -7,9 +7,9 @@ addprocs(6-length(procs()))
 path="C:\\Users\\joaor\\Dropbox\\Economics\\ThirdYearPaper\\Code\\ExperiencedLaborReallocationIncompleteMarkets\\"
 cd(path)
 
-include(path*"ValueFunctionsIterationParallel.jl")
-include(path*"StationaryEquilibriumParallel.jl")
-include(path*"TransitionParallel2.jl")
+include(path*"NewValueFunctionsIterationParallel.jl")
+include(path*"NewStationaryEquilibriumParallel.jl")
+include(path*"NewTransitionParallel.jl")
 include(path*"AnalyzingResults.jl")
 
 @everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim,StatsBase
@@ -27,33 +27,32 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere β=0.9935 # Discount factor
 @everywhere σ=2.0  # Inverse IES
 @everywhere ρ=0.032 # Exogenous separation
-@everywhere δ=0.005 # Separation with loss of skill
-@everywhere α=0.125/6 # Probability of becoming skilled
+@everywhere δ=1/(45*6) # Death
+@everywhere α=[1/12;1/18;1/18;0] # Probability of being promoted
+@everywhere χ=[0;0.2;0.2;0.2] # Probability of losing skill
 @everywhere b=0.45*0.94 # Replacement rate: Unemployment benefits; b*w > -̲a*r or c<0 at lowest wealth
 @everywhere σ_ϵ=0.1 # s.d. of taste shocks
 @everywhere ξ=0.5 # Unemployed share in matching technology
 @everywhere m=0.48 # Productivity of matching technology
-@everywhere κ_e=0.02 # Vacancy cost experienced
-@everywhere κ_i=0.02 # Vacancy cost inexperienced
-@everywhere γ=0.1842 # Productivity share of inexperienced workers
+@everywhere κ=[0.28;0.28;0.28;0.28] # Vacancy cost
+@everywhere γ=[0.055563;0.098816;0.159657;0.685964] # Productivity share workers
 @everywhere ν=10.0 # Elasticity of substitution between intermediate goods
-@everywhere F_e=0.95 # Fixed cost of hiring experienced
-@everywhere F_i=0.95 # Fixed cost of hiring inexperienced
+
 
 @everywhere a_min=0.0
 @everywhere a_max=5.0
 
 # Prices
 if PE==1
-    @everywhere w=[0.55354 0.63634; 0.55354 0.63634]
+    @everywhere w=[0.342383 0.360871 0.38348 0.400614; 0.342383 0.360871 0.38348 0.400614]
 end
 @everywhere r=0.015/6
 
-@everywhere z=[2.0; 2.0]
+@everywhere z=2.0*ones(2) #n_i=2
 
 # Grids
 @everywhere n_i=2
-@everywhere n_s=2
+@everywhere n_s=4
 @everywhere n_μ=1 #100
 
 @everywhere grid_i=1:n_i
@@ -98,23 +97,22 @@ if PE==1
     pol_functions=(pol_a_Ei,pol_a_Ui,pol_μ_U,pol_σ_E,pol_σ_U,θ)
     Φ=ComputeDistribution(grids,pol_functions)
 
-    Y,E_I,E_E,U_I,U_E=ComputeAggregates(grids,pol_functions,Φ,z)
+    Y,E,U=ComputeAggregates(grids,pol_functions,Φ,z)
 
-    wages(Y,z,i,e)=((1/n_i)*γ*Y^(1/ν)*z^(1-(1/ν))*i^(γ*(1-(1/ν))-1)*e^((1-γ)*(1-(1/ν))),
-                        (1/n_i)*(1-γ)*Y^(1/ν)*z^(1-(1/ν))*i^(γ*(1-(1/ν)))*e^((1-γ)*(1-(1/ν))-1))
+    wages(Y,z,E,s_i)=(1/n_i)*γ[s_i]*Y^(1/ν)*z^(1-(1/ν))*E[s_i]^(γ[s_i]*(1-(1/ν))-1)*prod(E[1:end .!=s_i].^((γ[1:end .!=s_i])*(1-(1/ν))))
 
-    wages_result=wages(Y,z[1],E_I[1],E_E[1])
+    wages_result=zeros(n_s)
+    for s_i in 1:n_s
+        wages_result[s_i]=wages(Y,z[1],E[1,:],s_i)
+    end
     display(wages_result)
-    display(E_I[1])
-    display(E_E[1])
+    display(E[1,:])
 
 elseif PE==0
-    pol_val_functions,Φ,Y,E_I,E_E,U_I,U_E=GeneralEquilibrium(z)
+    pol_val_functions,Φ,Y,E,U=GeneralEquilibrium(z)
     (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 end
 
-# Computing unemployment duration
-# Simulation??
 
 if comp_transition==1
 
@@ -126,32 +124,94 @@ if comp_transition==1
     # 2) Persistent shock, 9 periods (1.5 years)
     # 3) Permanent shock, new stationary eq
 
-    shockdur=9
+    shockdur=40
     zt=z*ones(1,shockdur+1)
-    zt[:,1]=[1.5;2.0]
+    zt[:,1]=[1.7;2.0]
     for t in 2:shockdur
-        zt[:,t]=zt[:,1]
+        zt[:,t]=0.9*zt[:,t-1]+0.1*z
     end
 
 
     grid_a=LinRange(a_min,a_max,n_anew)
     grids=(grid_i,grid_s,grid_a,grid_μ)
 
-    StatEq=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E_I,E_E,U_I,U_E)
-    NewI,NewE,NewU_I,NewU_E,pol_val_results=Transition(grids,StatEq,zt)
+    StatEq=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E,U)
+    NewE,NewU,pol_val_results=Transition(grids,StatEq,zt;Guess=NewE)
 
 
-    aggregates_transition=(NewI,NewE,NewU_I,NewU_E)
-
+    aggregates_transition=(NewE,NewU)
 
     PlotResultsStatEq(grids,StatEq)
-    PlotResultsTransition(grids,zt,pol_val_results,aggregates_transition)
+    #PlotResultsTransition(grids,zt,pol_val_results,aggregates_transition)
 
     (V_E_Tr,V_U_Tr,W_E_Tr,W_U_Tr,pol_a_Ei_Tr,pol_a_Ui_Tr,pol_μ_U_Tr,pol_σ_E_Tr,pol_σ_U_Tr,J_Tr,θ_Tr,Φ_Tr)=pol_val_results
 
-    plot(pol_σ_U_Tr[1501:3000,1,1:5])
+    plot(pol_σ_U_Tr[1501:6000,1,1:5])
     plot!(pol_σ_U_Tr[1501:3000,1,end])
 
-    plot(p.(θ_Tr[150000+501:150000+600,1:3]),legend=false)
-    plot!(p.(θ_Tr[150000+501:150000+600,end]),legend=false)
 end
+
+
+#####################
+p1=plot(grid_a/(0.94*w[1,1]),pol_σ_U_Tr[1501:3000,1,1:3],title="2 years of tenure",label=["period 1" "period 2" "period 3"],linestyle=[:dash :dashdot :solid],lc=[:black :red :blue])
+xlabel!("asset holdings")
+ylabel!("probability of searching in occupation")
+
+p2=plot(grid_a/(0.94*w[1,1]),pol_σ_U_Tr[3001:4500,1,1:3],title="5 years of tenure",legend=false,linestyle=[:dash :dashdot :solid],lc=[:black :red :blue])
+xlabel!("asset holdings")
+ylabel!("probability of searching in occupation")
+
+p3=plot(grid_a/(0.94*w[1,1]),pol_σ_U_Tr[4501:6000,1,1:3],title="8 years of tenure",legend=false,linestyle=[:dash :dashdot :solid],lc=[:black :red :blue])
+xlabel!("asset holdings")
+ylabel!("probability of searching in occupation")
+
+plot(p1,p2,p3,layout=(1,3))
+
+
+## Computing wealth inequality
+
+# Gini coefficient
+
+cumulx=zeros(1500)
+cumuly=zeros(1500)
+for a_i in 1:1500
+    cumulx[a_i]=Φ'*kron(ones(n_i*n_s+1+n_i*(n_s-1)),[ones(a_i);zeros(1500-a_i)])
+    cumuly[a_i]=(Φ'*kron(ones(n_i*n_s+1+n_i*(n_s-1)),[grid_a[1:a_i];zeros(1500-a_i)]))/(Φ'*kron(ones(n_i*n_s+1+n_i*(n_s-1)),grid_a))
+end
+
+plot(cumulx,cumuly,legend=false)
+plot!(cumulx,cumulx,legend=false)
+
+Gini=(cumulx[1]-cumuly[1])*cumulx[1]
+for a_i in 2:1500
+    Gini+=(cumulx[a_i]-cumuly[a_i])*(cumulx[a_i]-cumulx[a_i-1])
+end
+Gini=Gini/0.5
+
+
+# 90-10 ratio
+
+q10=findmin(abs.(cumulx.-0.1))[2]
+q90=findmin(abs.(cumulx.-0.9))[2]
+
+ratio9010=grid_a[q90]/grid_a[q10]
+
+# Computing income inequality
+
+
+cumulx=zeros(n_s)
+cumuly=zeros(n_s)
+for s_i in 1:n_s
+    cumulx[s_i]=sum(E[:,1:s_i])/sum(E)
+    cumuly[s_i]=sum(E[:,1:s_i].*w[:,1:s_i])/sum(E.*w)
+end
+
+plot(cumulx,cumuly,legend=false)
+plot!(cumulx,cumulx,legend=false)
+
+Gini=(cumulx[1]-cumuly[1])*cumulx[1]
+for s_i in 2:n_s
+    Gini+=(cumulx[s_i]-cumuly[s_i])*(cumulx[s_i]-cumulx[s_i-1])
+end
+Gini=Gini/0.5
+=#

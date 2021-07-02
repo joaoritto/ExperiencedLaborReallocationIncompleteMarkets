@@ -4,15 +4,15 @@ function PlotResultsStatEq(grids,StatEq)
 
     (grid_i,grid_s,grid_a,grid_μ)=grids
     n_i,n_s,n_a,n_μ=length(grid_i),length(grid_s),length(grid_a),length(grid_μ)
-    (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E_I,E_E,U_I,U_E)=StatEq
+    (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E,U)=StatEq
 
-    nstates=n_i*n_s*n_a*n_μ+n_a+n_i*n_a
+    nstates=n_i*n_s*n_a*n_μ+n_a+n_i*(n_s-1)*n_a
     nsvars=5
     ngrids_vars=[2,n_i,n_s,n_a,n_μ]
 
     nstates_E=n_i*n_s*n_a*n_μ
     statestogrid_E=ones(Int64,nstates_E,nsvars)
-    nstates_U=n_a+n_i*n_a
+    nstates_U=n_a+n_i*(n_s-1)*n_a
     statestogrid_U=ones(Int64,nstates_U,nsvars)
     for v in 1:nsvars
         if v==1
@@ -21,10 +21,11 @@ function PlotResultsStatEq(grids,StatEq)
             statestogrid_E[:,v]=kron(ones(prod(ngrids_vars[2:v-1]),1),kron(1:ngrids_vars[v],ones(prod(ngrids_vars[v+1:nsvars]),1)))
         end
     end
-    statestogrid_U[:,1]=2*ones(nstates_U,1)
-    statestogrid_U[:,2]=vcat(ones(n_a,1),kron(1:n_i,ones(n_a,1)))
-    statestogrid_U[end-2*n_a+1:end,3].=2
-    statestogrid_U[:,4]=kron(ones(n_i+1,1),1:n_a)
+    statestogrid_U[:,1]=2*ones(nstates_U)
+    statestogrid_U[1:n_a,2:nsvars-1]=hcat(ones(n_a,2),1:n_a)
+    for i_i in 1:n_i
+        statestogrid_U[n_a+(i_i-1)*(n_s-1)*n_a+1:n_a+i_i*(n_s-1)*n_a,2:nsvars-1]=hcat(i_i*ones((n_s-1)*n_a,1),kron(2:n_s,ones(n_a)),kron(ones(n_s-1),1:n_a))
+    end
 
     statestogrid=[statestogrid_E;statestogrid_U]
 
@@ -32,11 +33,11 @@ function PlotResultsStatEq(grids,StatEq)
     # 1) Compute the policy functions of submarket choice of the unemployed
     #---------------------------------------------------------------------------
 
-    plot1=plot(grid_μ[pol_μ_U[1:n_a]],title="Search strategy of unemployed",titlefontsize=7)
-    for state in 2:1+n_i
-        plot1=plot!(grid_μ[pol_μ_U[(state-1)*n_a+1:state*n_a]])
-    end
-    display(plot1)
+    #plot1=plot(grid_μ[pol_μ_U[1:n_a]],title="Search strategy of unemployed",titlefontsize=7)
+    #for state in 2:1+n_i
+    #    plot1=plot!(grid_μ[pol_μ_U[(state-1)*n_a+1:state*n_a]])
+    #end
+    #display(plot1)
 
     #---------------------------------------------------------------------------
     # 2) Mean wealth of workers in stationary equilibrium
