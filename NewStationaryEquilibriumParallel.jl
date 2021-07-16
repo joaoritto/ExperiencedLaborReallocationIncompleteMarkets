@@ -225,7 +225,7 @@ function ComputeDistribution(grids,pol_functions)
         Φ=T'*Φ
     end
 
-    return Φ
+    return Φ,T
 end
 
 # Computing aggregates in the stationary equilibrium
@@ -304,6 +304,7 @@ function GeneralEquilibrium(z)
     U=zeros(n_s)
     Y=false
     Φ=false
+    Tr=false
     Eerr=1000*ones(n_s)
 
     Ed=zeros(n_i,n_s)
@@ -349,8 +350,9 @@ function GeneralEquilibrium(z)
         pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
 
         pol_functions=(pol_a_Ei,pol_a_Ui,pol_μ_U,pol_σ_E,pol_σ_U,θ)
+        pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)
 
-        Φ=ComputeDistribution(grids,pol_functions)
+        Φ,Tr=ComputeDistribution(grids,pol_functions)
         Y,Es,U=ComputeAggregates(grids,pol_functions,Φ,z)
         display(Es)
 
@@ -374,5 +376,5 @@ function GeneralEquilibrium(z)
         end
     end
 
-    return pol_val_functions,Φ,Y,Es,U
+    return pol_val_functions,Φ,Tr,Y,Es,U
 end

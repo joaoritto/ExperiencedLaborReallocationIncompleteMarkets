@@ -2,7 +2,7 @@
 
 using Distributed, SharedArrays
 
-addprocs(6-length(procs()))
+addprocs(2-length(procs()))
 
 path="C:\\Users\\joaor\\Dropbox\\Economics\\ThirdYearPaper\\Code\\ExperiencedLaborReallocationIncompleteMarkets\\"
 cd(path)
@@ -18,7 +18,7 @@ include(path*"AnalyzingResults.jl")
 
 PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
 small_grid=0
-comp_transition=1
+comp_transition=0
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
 # Calibration (1 period=2 months)
@@ -95,7 +95,7 @@ if PE==1
     pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
 
     pol_functions=(pol_a_Ei,pol_a_Ui,pol_μ_U,pol_σ_E,pol_σ_U,θ)
-    Φ=ComputeDistribution(grids,pol_functions)
+    Φ,Tr=ComputeDistribution(grids,pol_functions)
 
     Y,E,U=ComputeAggregates(grids,pol_functions,Φ,z)
 
@@ -109,10 +109,29 @@ if PE==1
     display(E[1,:])
 
 elseif PE==0
-    pol_val_functions,Φ,Y,E,U=GeneralEquilibrium(z)
-    (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+    pol_val_functions,Φ,Tr,Y,E,U=GeneralEquilibrium(z)
+    (V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_μ_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 end
 
+grid_a=LinRange(a_min,a_max,n_anew)
+grids=(grid_i,grid_s,grid_a,grid_μ)
+pol_functions=(pol_a_Ei,pol_a_Ui,pol_μ_U,pol_σ_E,pol_σ_U,θ)
+
+earningsloss0,earningsloss1=EarningsLoss(grids,pol_functions,Tr)
+#=
+wages(Y,z,E,s_i)=(1/n_i)*γ[s_i]*Y^(1/ν)*z^(1-(1/ν))*E[s_i]^(γ[s_i]*(1-(1/ν))-1)*prod(E[1:end .!=s_i].^((γ[1:end .!=s_i])*(1-(1/ν))))
+
+StatEq=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E,U)
+
+w=zeros(n_i,n_s)
+for i_i in 1:n_i
+    for s_i in 1:n_s
+        w[i_i,s_i]=wages(Y,z[i_i],E[i_i,:],s_i)
+    end
+end
+
+Jacobian=SeqSpaceJacobian(grids,StatEq,w)
+=#
 
 if comp_transition==1
 
@@ -151,6 +170,7 @@ if comp_transition==1
 
 end
 
+#=
 
 #####################
 p1=plot(grid_a/(0.94*w[1,1]),pol_σ_U_Tr[1501:3000,1,1:3],title="2 years of tenure",label=["period 1" "period 2" "period 3"],linestyle=[:dash :dashdot :solid],lc=[:black :red :blue])
@@ -188,30 +208,4 @@ for a_i in 2:1500
 end
 Gini=Gini/0.5
 
-
-# 90-10 ratio
-
-q10=findmin(abs.(cumulx.-0.1))[2]
-q90=findmin(abs.(cumulx.-0.9))[2]
-
-ratio9010=grid_a[q90]/grid_a[q10]
-
-# Computing income inequality
-
-
-cumulx=zeros(n_s)
-cumuly=zeros(n_s)
-for s_i in 1:n_s
-    cumulx[s_i]=sum(E[:,1:s_i])/sum(E)
-    cumuly[s_i]=sum(E[:,1:s_i].*w[:,1:s_i])/sum(E.*w)
-end
-
-plot(cumulx,cumuly,legend=false)
-plot!(cumulx,cumulx,legend=false)
-
-Gini=(cumulx[1]-cumuly[1])*cumulx[1]
-for s_i in 2:n_s
-    Gini+=(cumulx[s_i]-cumuly[s_i])*(cumulx[s_i]-cumulx[s_i-1])
-end
-Gini=Gini/0.5
 =#
