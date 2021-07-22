@@ -72,7 +72,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
     error=1000
 
     iter=0
-    while error>ϵ && iter<1000
+    while error>ϵ && iter<2000
         iter+=1
 
         V_E=SharedArray{Float64}(nstates_E)
@@ -267,7 +267,7 @@ function VFunctionIterEq(grids,w,θ;Vguess=false,tol=false)
             end
         end
 
-        error=maximum((W_E-W_E_old).^2)+maximum((W_U-W_U_old).^2)
+        error=maximum(abs.(W_E-W_E_old))+maximum(abs.(W_U-W_U_old))+maximum(abs.(V_E-V_E_old))+maximum(abs.(V_U-V_U_old))
         println("iter ",iter,": error=",error)
         W_E,W_E_old=W_E_old,W_E
         W_U,W_U_old=W_U_old,W_U
@@ -367,7 +367,7 @@ function JFunctionIter(grids,w,policyfunctions_W; Jguess=false,tol=false)
             end
         end
 
-        error=maximum((J-J_old).^2)
+        error=maximum(abs.(J-J_old))
         println("iter ",iter,": error=",error)
         J,J_old=J_old,J
     end
@@ -441,14 +441,19 @@ function ValueFunctions(grids,w;Guess=false)
             θ[ind]=q_inv(κ[s_i]/(J_old[ind]))
         end
 
-        V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIterEq(grids,w,θ,Vguess=Vfunctions,tol=1e-6)
+        V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U=VFunctionIterEq(grids,w,θ,Vguess=Vfunctions,tol=1e-7)
 
+        if Vfunctions==false
+            error0=0.0
+        else
+            error0=maximum(abs.(V_E-Vfunctions[1]))
+        end
         policyfunctions=(pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)
         Vfunctions=(V_E,V_U,W_E,W_U)
 
-        J=JFunctionIter(grids,w,policyfunctions,Jguess=J_old,tol=1e-9)
+        J=JFunctionIter(grids,w,policyfunctions,Jguess=J_old,tol=1e-7)
 
-        error=maximum((J-J_old).^2)
+        error=maximum(abs.(J-J_old))+error0
         println("iter ",iter," in outward loop, error of ",error)
         if dampening==0.0
             J,J_old=J_old,J
@@ -467,9 +472,10 @@ function ValueFunctions(grids,w;Guess=false)
     policyfunctions=(pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)
     Vfunctions=(V_E,V_U,W_E,W_U)
 
+    #=
     J=JFunctionIter(grids,w,policyfunctions,Jguess=J_old,tol=1e-9)
 
-    error=maximum((J-J_old).^2)
+    error=maximum(abs.(J-J_old))
     println("iter ",iter," in outward loop, error of ",error)
 
     J,J_old=J_old,J
@@ -480,7 +486,8 @@ function ValueFunctions(grids,w;Guess=false)
     end
     (V_E,V_U,W_E,W_U)=Vfunctions
     (pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U)=policyfunctions
-
+    =#
+    J=J_old
     return V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_μ_U,pol_σ_E,pol_σ_U,J,θ
 end
 
