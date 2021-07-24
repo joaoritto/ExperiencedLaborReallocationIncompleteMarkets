@@ -7,14 +7,14 @@ addprocs(6-length(procs()))
 path="C:\\Users\\joaor\\Dropbox\\Economics\\ThirdYearPaper\\Code\\ExperiencedLaborReallocationIncompleteMarkets\\"
 cd(path)
 
-include(path*"NewValueFunctionsIterationParallel2.jl")
-include(path*"NewStationaryEquilibriumParallel.jl")
-include(path*"NewTransitionParallel.jl")
+include(path*"ValueFunctionsIteration.jl")
+include(path*"StationaryEquilibrium.jl")
+include(path*"Transition.jl")
 include(path*"AnalyzingResults.jl")
 include(path*"EarningsLoss.jl")
 include(path*"SeqSpaceJacobian.jl")
 
-@everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim,StatsBase
+@everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim,StatsBase,Distributions
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
@@ -38,8 +38,12 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere m=0.48 # Productivity of matching technology
 @everywhere κ=[0.28;0.28;0.28;0.28] # Vacancy cost
 @everywhere γ=[0.055563;0.098816;0.159657;0.685964] # Productivity share workers
+@everywhere ω=-1e-7 # Elasticity of substitution between worker types (CES prod function)
 @everywhere ν=10.0 # Elasticity of substitution between intermediate goods
 @everywhere φ=0.94 # Portion of good paid to worker
+
+@everywhere O=200
+@everywhere ϕ=[0.5;0.5]# [1/O;(O-1)/O] # weight of each occupation
 
 @everywhere a_min=0.0
 @everywhere a_max=5.0
@@ -98,40 +102,97 @@ if PE==1
     pol_functions=(pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,θ)
     Φ,Tr=ComputeDistribution(grids,pol_functions)
 
-    Y,E,U=ComputeAggregates(grids,pol_functions,Φ,z)
+    Y,E,U=ComputeAggregates(grids,Φ,z)
 
-    wages(Y,z,E,e_i)=(1/n_o)*γ[e_i]*Y^(1/ν)*z^(1-(1/ν))*E[e_i]^(γ[e_i]*(1-(1/ν))-1)*prod(E[1:end .!=e_i].^((γ[1:end .!=e_i])*(1-(1/ν))))
+    prices(ϕ,Y,z,E,e_i)=ϕ*γ[e_i]*Y^(1/ν)*z^(1-(1/ν))*E[e_i]^(ω-1)*sum(γ.*(E.^ω))^((1/ω)*(1-(1/ν))-1)
 
-    wages_result=zeros(n_e)
-    for e_i in 1:n_e
-        wages_result[e_i]=wages(Y,z[1],E[1,:],e_i)
+    prices_result=zeros(n_o,n_e)
+    for o_i in 1:n_o
+        for e_i in 1:n_e
+            prices_result[o_i,e_i]=prices(ϕ[o_i],Y,z[o_i],E[o_i,:],e_i)
+        end
     end
-    display(wages_result)
-    display(E[1,:])
+    display(prices_result)
+    display(E[:,:])
 
 elseif PE==0
     pol_val_functions,Φ,Tr,Y,E,U=GeneralEquilibrium(z)
     (V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 end
 
-grid_a=LinRange(a_min,a_max,n_anew)
+grid_a=LinRange(a_min,a_max,nGrids_a[end])
 grids=(grid_o,grid_e,grid_a)
-pol_functions=(pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,θ)
 
-#earningsloss0,earningsloss1=EarningsLoss(grids,pol_functions,Tr)
+V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,p;Guess=pol_val_functions0)
+pol_val_functions0=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
 
-wages(Y,z,E,e_i)=(1/n_o)*γ[e_i]*Y^(1/ν)*z^(1-(1/ν))*E[e_i]^(γ[e_i]*(1-(1/ν))-1)*prod(E[1:end .!=e_i].^((γ[1:end .!=e_i])*(1-(1/ν))))
+grid_a=LinRange(a_min,a_max,n_anew)
+pol_val_functions=transformVPolFunctions(pol_val_functions0,grids,grid_a)
+(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+grids=(grid_o,grid_e,grid_a)
+
+pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
 
 StatEq=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E,U)
+
+prices(ϕ,Y,z,E,e_i)=ϕ*γ[e_i]*Y^(1/ν)*z^(1-(1/ν))*E[e_i]^(ω-1)*sum(γ.*(E.^ω))^((1/ω)*(1-(1/ν))-1)
 
 p=zeros(n_o,n_e)
 for o_i in 1:n_o
     for e_i in 1:n_e
-        p[o_i,e_i]=wages(Y,z[o_i],E[o_i,:],e_i)
+        p[o_i,e_i]=prices(1/n_o,Y,z[o_i],E[o_i,:],e_i)
     end
 end
 
-#Jacobian=SeqSpaceJacobian2(grids,StatEq,p,Tr)
+#earningsloss,wageloss=EarningsLoss(grids,pol_functions,Tr,p)
+
+Jacobian=SeqSpaceJacobian(grids,StatEq,p,Tr)
+
+shockdur=40
+zt=z*ones(1,shockdur+1)
+zt[:,1]=[1.7;2.0]
+for t in 2:shockdur
+    zt[:,t]=0.9*zt[:,t-1]+0.1*z
+end
+
+dZ=zeros(n_o,200)
+dZ[:,1:shockdur+1]=zt.-z
+
+dU,dUdZ=ComputingdU(grids,StatEq,Jacobian,dZ)
+
+# simulate
+shock=rand(Normal(0,1),10000,2)
+logzt=zeros(n_o,200)
+dtotal=[zeros(n_o,n_e) for t in 1:10000]
+for s in 1:1000#0-200+1
+    for t in s:s-1+200
+        if t==s
+            logzt[:,t-s+1]=log.(z)+0.1*shock[t-s+1,:]
+        else
+            logzt[:,t-s+1]=0.9*logzt[:,t-s]+0.1*log.(z)
+        end
+    end
+    zt=exp.(logzt)
+    dZ=zt.-z
+    dZ=dZ[:]
+    dU=dUdZ*dZ
+    for t in s:s-1+200
+        for o_i in 1:n_o
+            for e_i in 1:n_e
+                dtotal[t][o_i,e_i]+=dU[(t-s)*n_o*n_e+(o_i-1)*n_e+e_i]
+            end
+        end
+    end
+end
+Ett=zeros(n_o*n_e,10000)
+for t in 1:1000
+    for o_i in 1:n_o
+        for e_i in 1:n_e
+            Ett[(o_i-1)*n_e+e_i,t]=E[o_i,e_i]+dtotal[t][o_i,e_i]
+        end
+    end
+end
+
 
 
 if comp_transition==1
@@ -140,33 +201,32 @@ if comp_transition==1
     #           Transition Exercises
     ###################################################
 
-    # 1) Transitory shock, 3 periods (6 months)
-    # 2) Persistent shock, 9 periods (1.5 years)
-    # 3) Permanent shock, new stationary eq
 
-    shockdur=10
-    zt=z*ones(1,shockdur+1)
-    zt[:,1]=[2.0;2.0]
-    for t in 2:shockdur
-        zt[:,t]=0.9*zt[:,t-1]+0.1*z
+    T=200
+    Eold=[zeros(n_o,n_e) for t in 1:T]
+    for t in 1:T
+        for o_i in 1:n_o
+            for e_i in 1:n_e
+                Eold[t][o_i,e_i]=E[o_i,e_i]+dU[(t-1)*n_o*n_e+(o_i-1)*n_e+e_i]
+            end
+        end
     end
 
-    grid_a=LinRange(a_min,a_max,nGrids_a[end])
-    grids=(grid_o,grid_e,grid_a)
 
-    V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,p;Guess=pol_val_functions0)
-    pol_val_functions0=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
+    Eplot=zeros(n_e*n_o,T)
+    for t in 1:T
+        for o_i in 1:n_o
+            for e_i in 1:n_e
+                Eplot[(o_i-1)*n_e+e_i,t]=Eold[t][o_i,e_i]
+            end
+        end
+    end
 
-    grid_a=LinRange(a_min,a_max,n_anew)
-    pol_val_functions=transformVPolFunctions(pol_val_functions0,grids,grid_a)
-    (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
-    grids=(grid_o,grid_e,grid_a)
 
-    pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
+    plot0=plot(1:T,Eplot',legend=false)
+    display(plot0)
 
-    StatEq=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E,U)
-    NewE,NewU,pol_val_results=Transition(grids,StatEq,zt)
-
+    NewE,NewU,pol_val_results=Transition(grids,StatEq,zt;Guess=Eold)
 
     aggregates_transition=(NewE,NewU)
 
@@ -179,6 +239,12 @@ if comp_transition==1
     #plot!(pol_σ_U_Tr[1501:3000,1,end])
 
 end
+
+#save(path*"results.jld", "StatEq", StatEq, "pol_val_results", pol_val_results,"NewE",NewE,"NewU",NewU)
+#StatEq=load(path*"results.jld", "StatEq")
+#pol_val_results=load(path*"results.jld", "pol_val_results")
+#NewE=load(path*"results.jld", "NewE")
+#NewU=load(path*"results.jld", "NewU")
 
 #=
 

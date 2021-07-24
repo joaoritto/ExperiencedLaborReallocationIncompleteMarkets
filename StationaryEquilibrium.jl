@@ -7,16 +7,18 @@ function ComputeDistribution(grids,pol_functions)
 
     (grid_o,grid_e,grid_a)=grids
     n_o,n_e,n_a=length(grid_o),length(grid_e),length(grid_a)
-    (pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,θ)=pol_functions
+    (pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,θ)=pol_functions
 
     nstates=n_o*n_e*n_a+n_a+n_o*(n_e-1)*n_a
     nsvars=4
     ngrids_vars=[2,n_o,n_e,n_a]
 
     nstates_E=n_o*n_e*n_a
-    nsvars_E=3
     nstates_U=n_a+n_o*(n_e-1)*n_a
+    nsvars_E=3
+    ngrids_vars_E=[n_o,n_e,n_a]
     nsvars_U=3
+    ngrids_vars_U=[n_o,n_e,n_a]
 
     statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
     for v in 1:nsvars_E
@@ -33,6 +35,7 @@ function ComputeDistribution(grids,pol_functions)
 
     # Construct Transition matrix
 
+
     i=Int64[]
     j=Int64[]
     k=Float64[]
@@ -41,15 +44,15 @@ function ComputeDistribution(grids,pol_functions)
         a_i=statestogrid[ind,4]
         e_i=statestogrid[ind,3]
         o_i=statestogrid[ind,2]
-        e_i=statestogrid[ind,1]
+        s_i=statestogrid[ind,1]
 
-        if e_i==1
+        if s_i==1
 
             indE=[o_i-1,e_i-1,a_i]'*[n_e*n_a,n_a,1]
-            a1_i=pol_a_E[indE]
+            a1_i=pol_a_Ei[indE]
             if e_i==1
                 ind1_en=[o_i-1,e_i-1,a1_i]'*[n_e*n_a,n_a,1]
-                ind1_ep=[o_i-1,(e_i+1)-1,a1_i-1]'*[n_e*n_a,n_a,1]
+                ind1_ep=[o_i-1,(e_i+1)-1,a1_i]'*[n_e*n_a,n_a,1]
                 ind1_un=n_o*n_e*n_a+a1_i
                 ind1_up=n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a+a1_i
 
@@ -115,7 +118,7 @@ function ComputeDistribution(grids,pol_functions)
             end
 
 
-        elseif e_i==2
+        elseif s_i==2
 
             if e_i==1
                 indU=a_i
@@ -126,7 +129,7 @@ function ComputeDistribution(grids,pol_functions)
             ind1_u=zeros(Int64,n_o)
             ind1_e=zeros(Int64,n_o)
 
-            a1_i=pol_a_U[indU]
+            a1_i=pol_a_Ui[indU]
 
             if e_i==1
 
@@ -219,7 +222,7 @@ function ComputeDistribution(grids,pol_functions)
     ind0=200
     Φ[ind0]=1.0
 
-    for j in 1:7000
+    for j in 1:50000
         Φ=T'*Φ
     end
 
@@ -228,14 +231,10 @@ end
 
 # Computing aggregates in the stationary equilibrium
 
-function ComputeAggregates(grids,pol_functions,Φ,z)
-
-    P(θ)=min(m*θ^(1-ξ),1)
+function ComputeAggregates(grids,Φ,z)
 
     (grid_o,grid_e,grid_a)=grids
     n_o,n_e,n_a=length(grid_o),length(grid_e),length(grid_a)
-
-    nstates=n_o*n_e*n_a+n_o*n_a
 
     # Compute unemployed and employed of each type
     E=zeros(n_o,n_e)
@@ -253,11 +252,11 @@ function ComputeAggregates(grids,pol_functions,Φ,z)
         end
     end
 
-    Y=0
+    Y=0.0
     y=zeros(n_o)
     for o_i in 1:n_o
-        y[o_i]=z[o_i]*prod(E[o_i,:].^γ)
-        Y+=(1/n_o)*y[o_i]^((ν-1)/ν)
+        y[o_i]=z[o_i]*sum(γ.*(E[o_i,:].^ω))^(1/ω)
+        Y+=ϕ[o_i]*y[o_i]^((ν-1)/ν)
     end
     Y=Y^(ν/(ν-1))
 
@@ -281,7 +280,7 @@ function GeneralEquilibrium(z)
     function Y_CES(z,E)
         Y=0
         for o_i in 1:n_o
-            Y+=(1/n_o)*(z[o_i]*prod(E[o_i,:].^γ))^((ν-1)/ν)
+            Y+=ϕ[o_i]*(z[o_i]*prod(E[o_i,:].^γ))^((ν-1)/ν)
         end
         Y=Y^(ν/(ν-1))
         return Y
@@ -321,12 +320,12 @@ function GeneralEquilibrium(z)
 
         Y=Y_CES(z,Ed)
 
-        wages(Y,z,E,e_i)=(1/n_o)*γ[e_i]*Y^(1/ν)*z^(1-(1/ν))*E[e_i]^(γ[e_i]*(1-(1/ν))-1)*prod(E[1:end .!=e_i].^((γ[1:end .!=e_i])*(1-(1/ν))))
+        prices(ϕ,Y,z,E,e_i)=ϕ*γ[e_i]*Y^(1/ν)*z^(1-(1/ν))*E[e_i]^(ω-1)*sum(γ.*(E.^ω))^((1/ω)*(1-(1/ν))-1)
 
         p=zeros(n_o,n_e)
         for o_i in 1:n_o
             for e_i in 1:n_e
-                p[o_i,e_i]=wages(Y,z[o_i],Ed[o_i,:],e_i)
+                p[o_i,e_i]=prices(ϕ[o_i],Y,z[o_i],Ed[o_i,:],e_i)
             end
         end
 
@@ -351,7 +350,7 @@ function GeneralEquilibrium(z)
         pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ)
 
         Φ,Tr=ComputeDistribution(grids,pol_functions)
-        Y,Es,U=ComputeAggregates(grids,pol_functions,Φ,z)
+        Y,Es,U=ComputeAggregates(grids,Φ,z)
         display(Es)
 
         while k>0

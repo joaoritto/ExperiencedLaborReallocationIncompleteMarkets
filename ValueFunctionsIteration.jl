@@ -102,7 +102,7 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
             e_i=statestogrid_E[ind,2]
             o_i=statestogrid_E[ind,1]
 
-            wage=p[o_i,e_i]
+            p_eo=p[o_i,e_i]
 
             a_guess=[grid_a[a_i]+1e-2]
 
@@ -113,7 +113,7 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                 ind1_ep=[o_i-1,2-1,1]'*[n_e*n_a,n_a,1]
                 interp_W_Ep=LinearInterpolation(grid_a,W_E_old[ind1_ep:(ind1_ep-1)+n_a];extrapolation_bc=Line())
 
-                Veval_0(a1)= -(u((1+r)*grid_a[a_i]+φ*wage-a1[1])+β*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
+                Veval_0(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
                 if Veval_0(a_min)<Veval_0(a_min+1e-12)
                     pol_a_E[ind]=a_min
                     V_E[ind]=-Veval_0(a_min)
@@ -130,7 +130,7 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                 ind1_ep=[o_i-1,(e_i+1)-1,1]'*[n_e*n_a,n_a,1]
                 interp_W_Ep=LinearInterpolation(grid_a,W_E_old[ind1_ep:(ind1_ep-1)+n_a];extrapolation_bc=Line())
 
-                Veval_1(a1)= -(u((1+r)*grid_a[a_i]+φ*wage-a1[1])+β*((ρ-δ)*interp_V_U(a1[1])+δ*interp_V_Ud(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
+                Veval_1(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*((ρ-δ)*interp_V_U(a1[1])+δ*interp_V_Ud(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
                 if Veval_1(a_min)<Veval_1(a_min+1e-12)
                     pol_a_E[ind]=a_min
                     V_E[ind]=-Veval_1(a_min)
@@ -145,7 +145,7 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                 ind1_e=[o_i-1,e_i-1,1]'*[n_e*n_a,n_a,1]
                 interp_W_E=LinearInterpolation(grid_a,W_E_old[ind1_e:(ind1_e-1)+n_a];extrapolation_bc=Line())
 
-                Veval_2(a1)= -(u((1+r)*grid_a[a_i]+φ*wage-a1[1])+β*((ρ-δ)*interp_V_U(a1[1])+δ*interp_V_Ud(a1[1])+(1-ρ)*interp_W_E(a1[1])))
+                Veval_2(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*((ρ-δ)*interp_V_U(a1[1])+δ*interp_V_Ud(a1[1])+(1-ρ)*interp_W_E(a1[1])))
                 if Veval_2(a_min)<Veval_2(a_min+1e-12)
                     pol_a_E[ind]=a_min
                     V_E[ind]=-Veval_2(a_min)
@@ -212,7 +212,7 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
             e_i=statestogrid_E[ind,2]
             o_i=statestogrid_E[ind,1]
 
-            wage=p[o_i,e_i]
+            p_eo=p[o_i,e_i]
             a1=pol_a_E[ind]
 
             if e_i<n_e
@@ -226,14 +226,14 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                 interp_Jp=LinearInterpolation(grid_a,J_old[ind1_p:(ind1_p-1)+n_a];extrapolation_bc=Line())
                 Jn=interp_Jn(a1)
                 Jp=interp_Jp(a1)
-                J[ind]=(1-φ)*wage+β*(1-ρ)*((1-α[e_i])*σ_probn*Jn+α[e_i]*σ_probp*Jp)
+                J[ind]=(1-φ)*p_eo+β*(1-ρ)*((1-α[e_i])*σ_probn*Jn+α[e_i]*σ_probp*Jp)
             elseif e_i==n_e
                 ind1=[o_i-1,e_i-1,1]'*[n_e*n_a,n_a,1]
                 interp_pol_σ_E=LinearInterpolation(grid_a,pol_σ_E_old[ind1:(ind1-1)+n_a];extrapolation_bc=Line())
                 σ_prob=interp_pol_σ_E(a1)
                 interp_J=LinearInterpolation(grid_a,J_old[ind1:(ind1-1)+n_a];extrapolation_bc=Line())
                 Je=interp_J(a1)
-                J[ind]=(1-φ)*wage+β*(1-ρ)*σ_prob*Je
+                J[ind]=(1-φ)*p_eo+β*(1-ρ)*σ_prob*Je
             end
         end
 
