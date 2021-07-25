@@ -14,7 +14,7 @@ include(path*"AnalyzingResults.jl")
 include(path*"EarningsLoss.jl")
 include(path*"SeqSpaceJacobian.jl")
 
-@everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim,StatsBase,Distributions
+@everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim,StatsBase,Distributions,JLD
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
@@ -43,7 +43,8 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere φ=0.94 # Portion of good paid to worker
 
 @everywhere O=200
-@everywhere ϕ=[0.5;0.5]# [1/O;(O-1)/O] # weight of each occupation
+@everywhere ϕ=[0.5;0.5] # [1/O;(O-1)/O] # weight of each occupation
+@everywhere N_o=[1;O-1] # number of occupations in each "aggregate occupation"
 
 @everywhere a_min=0.0
 @everywhere a_max=5.0
@@ -159,15 +160,15 @@ dZ=zeros(n_o,200)
 dZ[:,1:shockdur+1]=zt.-z
 
 dU,dUdZ=ComputingdU(grids,StatEq,Jacobian,dZ)
-
+#=
 # simulate
 shock=rand(Normal(0,1),10000,2)
 logzt=zeros(n_o,200)
 dtotal=[zeros(n_o,n_e) for t in 1:10000]
-for s in 1:1000#0-200+1
+for s in 1:10000-200+1
     for t in s:s-1+200
         if t==s
-            logzt[:,t-s+1]=log.(z)+0.1*shock[t-s+1,:]
+            logzt[:,t-s+1]=log.(z)+0.05*shock[s,:]
         else
             logzt[:,t-s+1]=0.9*logzt[:,t-s]+0.1*log.(z)
         end
@@ -175,25 +176,28 @@ for s in 1:1000#0-200+1
     zt=exp.(logzt)
     dZ=zt.-z
     dZ=dZ[:]
-    dU=dUdZ*dZ
+    dE=dUdZ*dZ
     for t in s:s-1+200
         for o_i in 1:n_o
             for e_i in 1:n_e
-                dtotal[t][o_i,e_i]+=dU[(t-s)*n_o*n_e+(o_i-1)*n_e+e_i]
+                dtotal[t][o_i,e_i]+=dE[(t-s)*n_o*n_e+(o_i-1)*n_e+e_i]
             end
         end
     end
 end
 Ett=zeros(n_o*n_e,10000)
-for t in 1:1000
+unemp=zeros(10000)
+for t in 1:10000
     for o_i in 1:n_o
         for e_i in 1:n_e
             Ett[(o_i-1)*n_e+e_i,t]=E[o_i,e_i]+dtotal[t][o_i,e_i]
         end
     end
+    unemp[t]=max(1-sum(Ett[:,t]),0.0)
 end
-
-
+meanu=mean(unemp)
+display(meanu)
+=#
 
 if comp_transition==1
 
@@ -210,6 +214,11 @@ if comp_transition==1
                 Eold[t][o_i,e_i]=E[o_i,e_i]+dU[(t-1)*n_o*n_e+(o_i-1)*n_e+e_i]
             end
         end
+    end
+
+    Uold=zeros(T)
+    for t in 1:T
+        Uold[t]=1-sum(Eold[t])
     end
 
 
@@ -239,6 +248,7 @@ if comp_transition==1
     #plot!(pol_σ_U_Tr[1501:3000,1,end])
 
 end
+
 
 #save(path*"results.jld", "StatEq", StatEq, "pol_val_results", pol_val_results,"NewE",NewE,"NewU",NewU)
 #StatEq=load(path*"results.jld", "StatEq")
