@@ -40,6 +40,7 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere ω=-1e-7 # Elasticity of substitution between worker types (CES prod function)
 @everywhere ν=10.0 # Elasticity of substitution between intermediate goods
 @everywhere φ=0.94 # Portion of good paid to worker
+@everywhere λ_2=1.0
 
 @everywhere O=200
 @everywhere ϕ=[1/(1+(O-1)^(1/ν));((O-1)^(1/ν))/(1+(O-1)^(1/ν))] #  weight of each occupation
@@ -56,9 +57,11 @@ end
 @everywhere z=2.0*ones(2) #n_o=2
 
 # Grids
+@everywhere n_beq=1
 @everywhere n_o=2 # Should be equal to 2, because code is written for the case of 2 occupations, occupation 2 being large
 @everywhere n_e=4
 
+@everywhere grid_beq=[0]
 @everywhere grid_o=1:n_o
 @everywhere grid_e=1:n_e
 
@@ -80,7 +83,7 @@ if PE==1
         (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions0
     elseif using_multigrid==0
         grid_a=LinRange(a_min,a_max,n_a)
-        grids=(grid_o,grid_e,grid_a)
+        grids=(grid_beq,grid_o,grid_e,grid_a)
         V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,p)
         pol_val_functions0=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
     end
@@ -88,12 +91,12 @@ if PE==1
     Check=(maximum(pol_a_E)<a_max)
 
     grid_a=LinRange(a_min,a_max,nGrids_a[end])
-    grids=(grid_o,grid_e,grid_a)
+    grids=(grid_beq,grid_o,grid_e,grid_a)
     if n_anew!=nGrids_a[end]
         grid_a=LinRange(a_min,a_max,n_anew)
         pol_val_functions=transformVPolFunctions(pol_val_functions0,grids,grid_a)
         (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
-        grids=(grid_o,grid_e,grid_a)
+        grids=(grid_beq,grid_o,grid_e,grid_a)
     end
 
     pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
@@ -120,7 +123,7 @@ elseif PE==0
 end
 
 grid_a=LinRange(a_min,a_max,nGrids_a[end])
-grids=(grid_o,grid_e,grid_a)
+grids=(grid_beq,grid_o,grid_e,grid_a)
 
 V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,p;Guess=pol_val_functions0)
 pol_val_functions0=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
@@ -128,7 +131,7 @@ pol_val_functions0=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
 grid_a=LinRange(a_min,a_max,n_anew)
 pol_val_functions=transformVPolFunctions(pol_val_functions0,grids,grid_a)
 (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
-grids=(grid_o,grid_e,grid_a)
+grids=(grid_beq,grid_o,grid_e,grid_a)
 
 pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
 
@@ -233,7 +236,7 @@ if comp_transition==1
     plot0=plot(1:T,Eplot',legend=false)
     display(plot0)
 
-    NewE,NewU,pol_val_results=Transition(grids,StatEq,zt;Guess=Eold)
+    NewE,NewU,pol_val_results=Transition(grids,StatEq,zt)#;Guess=Eold)
 
     aggregates_transition=(NewE,NewU)
 

@@ -3,7 +3,7 @@
 
 function ValueFunctions(grids,p;Guess=false,tol=false)
 
-    (grid_o,grid_e,grid_a)=grids
+    (grid_beq,grid_o,grid_e,grid_a)=grids
     @eval @everywhere grid_a=$grid_a
     @eval @everywhere p=$p
 
@@ -13,19 +13,21 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
         ϵ=tol
     end
 
-    n_o,n_e,n_a=length(grid_o),length(grid_e),length(grid_a)
+    n_beq,n_o,n_e,n_a=length(grid_beq),length(grid_o),length(grid_e),length(grid_a)
 
+    @eval @everywhere n_beq=$n_beq
     @eval @everywhere n_o=$n_o
     @eval @everywhere n_e=$n_e
     @eval @everywhere n_a=$n_a
 
-    nstates_E=n_a*n_e*n_o
-    ngrids_vars_E=[n_o,n_e,n_a]
-    nstates_U=n_a+n_o*(n_e-1)*n_a
-    ngrids_vars_U=[n_o,n_e,n_a]
 
-    nsvars_E=3
-    nsvars_U=3
+    nstates_E=n_a*n_e*n_o*n_beq
+    ngrids_vars_E=[n_beq,n_o,n_e,n_a]
+    nstates_U=n_beq*(n_a+n_o*(n_e-1)*n_a)
+    ngrids_vars_U=[n_beq,n_o,n_e-1,n_a]
+
+    nsvars_E=4
+    nsvars_U=4
 
     statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
     for v in 1:nsvars_E
@@ -33,10 +35,17 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
     end
 
     statestogrid_U=zeros(Int64,nstates_U,nsvars_U)
-    statestogrid_U[1:n_a,:]=hcat(ones(n_a,2),1:n_a)
-    for o_i in 1:n_o
-        statestogrid_U[n_a+(o_i-1)*(n_e-1)*n_a+1:n_a+o_i*(n_e-1)*n_a,:]=hcat(o_i*ones((n_e-1)*n_a,1),kron(2:n_e,ones(n_a)),kron(ones(n_e-1),1:n_a))
+    for beq_i in 1:n_beq
+        statestogrid_U[(beq_i-1)*n_a+1:beq_i*n_a,:]=hcat(beq_i*ones(n_a),ones(n_a,2),1:n_a)
     end
+    for v in 1:nsvars_E
+        if v==3
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(2:ngrids_vars_U[v]+1,ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        else
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(1:ngrids_vars_U[v],ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        end
+    end
+
 
     statestogrid=[hcat(ones(Int64,size(statestogrid_E,1),1),statestogrid_E);hcat(2*ones(Int64,size(statestogrid_U,1),1),statestogrid_U)]
 
@@ -75,6 +84,7 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
     @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere P(θ)=min(m*θ^(1-ξ),1)
     @everywhere q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
+    @everywhere bequest(λ_1,λ_2,beq)=λ_1*((beq+λ_2)^(1-σ)-1)
     error=1000
 
     iter=0
@@ -98,22 +108,24 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
 
         # 1) V_E
         @sync @distributed for ind in eachindex(V_E)
-            a_i=statestogrid_E[ind,3]
-            e_i=statestogrid_E[ind,2]
-            o_i=statestogrid_E[ind,1]
+            a_i=statestogrid_E[ind,4]
+            e_i=statestogrid_E[ind,3]
+            o_i=statestogrid_E[ind,2]
+            beq_i=statestogrid_E[ind,1]
 
             p_eo=p[o_i,e_i]
 
             a_guess=[grid_a[a_i]+1e-2]
 
             if e_i==1
-                interp_V_U=LinearInterpolation(grid_a,V_U_old[1:n_a];extrapolation_bc=Line())
-                ind1_en=[o_i-1,1-1,1]'*[n_e*n_a,n_a,1]
+                interp_V_U=LinearInterpolation(grid_a,V_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
+                ind1_en=[beq_i-1,o_i-1,1-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                 interp_W_En=LinearInterpolation(grid_a,W_E_old[ind1_en:(ind1_en-1)+n_a];extrapolation_bc=Line())
-                ind1_ep=[o_i-1,2-1,1]'*[n_e*n_a,n_a,1]
+                ind1_ep=[beq_i-1,o_i-1,2-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                 interp_W_Ep=LinearInterpolation(grid_a,W_E_old[ind1_ep:(ind1_ep-1)+n_a];extrapolation_bc=Line())
 
-                Veval_0(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
+                Veval_0(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
+                β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
                 if Veval_0(a_min)<Veval_0(a_min+1e-12)
                     pol_a_E[ind]=a_min
                     V_E[ind]=-Veval_0(a_min)
@@ -123,14 +135,16 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                     V_E[ind]=-opt.minimum
                 end
             elseif e_i<n_e
-                interp_V_Ud=LinearInterpolation(grid_a,V_U_old[1:n_a];extrapolation_bc=Line())
-                interp_V_U=LinearInterpolation(grid_a,V_U_old[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+1:n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a];extrapolation_bc=Line())
-                ind1_en=[o_i-1,e_i-1,1]'*[n_e*n_a,n_a,1]
+                interp_V_Ud=LinearInterpolation(grid_a,V_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
+                ind1_u=n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,1]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+                interp_V_U=LinearInterpolation(grid_a,V_U_old[ind1_u:(ind1_u-1)+n_a];extrapolation_bc=Line())
+                ind1_en=[beq_i-1,o_i-1,e_i-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                 interp_W_En=LinearInterpolation(grid_a,W_E_old[ind1_en:(ind1_en-1)+n_a];extrapolation_bc=Line())
-                ind1_ep=[o_i-1,(e_i+1)-1,1]'*[n_e*n_a,n_a,1]
+                ind1_ep=[beq_i-1,o_i-1,(e_i+1)-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                 interp_W_Ep=LinearInterpolation(grid_a,W_E_old[ind1_ep:(ind1_ep-1)+n_a];extrapolation_bc=Line())
 
-                Veval_1(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
+                Veval_1(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
+                β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
                 if Veval_1(a_min)<Veval_1(a_min+1e-12)
                     pol_a_E[ind]=a_min
                     V_E[ind]=-Veval_1(a_min)
@@ -140,12 +154,13 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                     V_E[ind]=-opt.minimum
                 end
             elseif e_i==n_e
-                interp_V_Ud=LinearInterpolation(grid_a,V_U_old[1:n_a];extrapolation_bc=Line())
-                interp_V_U=LinearInterpolation(grid_a,V_U_old[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+1:n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a];extrapolation_bc=Line())
-                ind1_e=[o_i-1,e_i-1,1]'*[n_e*n_a,n_a,1]
+                interp_V_Ud=LinearInterpolation(grid_a,V_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
+                ind1_u=n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,1]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+                interp_V_U=LinearInterpolation(grid_a,V_U_old[ind1_u:(ind1_u-1)+n_a];extrapolation_bc=Line())
+                ind1_e=[beq_i-1,o_i-1,e_i-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                 interp_W_E=LinearInterpolation(grid_a,W_E_old[ind1_e:(ind1_e-1)+n_a];extrapolation_bc=Line())
 
-                Veval_2(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*interp_W_E(a1[1])))
+                Veval_2(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*interp_W_E(a1[1]))+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
                 if Veval_2(a_min)<Veval_2(a_min+1e-12)
                     pol_a_E[ind]=a_min
                     V_E[ind]=-Veval_2(a_min)
@@ -160,16 +175,17 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
 
         # 2) V_U
         @sync @distributed for ind in eachindex(V_U)
-            a_i=statestogrid_U[ind,3]
-            e_i=statestogrid_U[ind,2]
-            o_i=statestogrid_U[ind,1]
+            a_i=statestogrid_U[ind,4]
+            e_i=statestogrid_U[ind,3]
+            o_i=statestogrid_U[ind,2]
+            beq_i=statestogrid_U[ind,1]
 
             ub=b*p[o_i,e_i]
 
             if e_i==1
-                interp_W_U=LinearInterpolation(grid_a,W_U_old[1:n_a];extrapolation_bc=Line())
+                interp_W_U=LinearInterpolation(grid_a,W_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
 
-                Veval_0(a1)=-(u((1+r)*grid_a[a_i]+ub-a1[1])+β*(1-δ)*interp_W_U(a1[1]))
+                Veval_0(a1)=-(u((1+r)*grid_a[a_i]+ub-a1[1])+β*(1-δ)*interp_W_U(a1[1])+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
                 a_guess=[grid_a[a_i]+1e-2]
 
@@ -182,16 +198,18 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                     V_U[ind]=-opt.minimum
                 end
             else
-                interp_W_Ud=LinearInterpolation(grid_a,W_U_old[1:n_a];extrapolation_bc=Line())
+                interp_W_Ud=LinearInterpolation(grid_a,W_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
                 if e_i==2
-                    interp_W_Ul=LinearInterpolation(grid_a,W_U_old[1:n_a];extrapolation_bc=Line())
+                    interp_W_Ul=LinearInterpolation(grid_a,W_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
                 elseif e_i>2
-                    interp_W_Ul=LinearInterpolation(grid_a,W_U_old[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-3)*n_a+1:n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a];extrapolation_bc=Line())
+                    ind_ul=n_beq*n_a+[beq_i-1,o_i-1,(e_i-2)-1,1]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+                    interp_W_Ul=LinearInterpolation(grid_a,W_U_old[ind_ul:(ind_ul-1)+n_a];extrapolation_bc=Line())
                 end
-                interp_W_U=LinearInterpolation(grid_a,W_U_old[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+1:n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a];extrapolation_bc=Line())
+                ind_u=n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,1]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+                interp_W_U=LinearInterpolation(grid_a,W_U_old[ind_u:(ind_u-1)+n_a];extrapolation_bc=Line())
 
 
-                Veval_1(a1)=-(u((1+r)*grid_a[a_i]+ub-a1[1])+β*(1-δ)*((1-χ[e_i])*interp_W_U(a1[1])+χ[e_i]*interp_W_Ul(a1[1])))
+                Veval_1(a1)=-(u((1+r)*grid_a[a_i]+ub-a1[1])+β*(1-δ)*((1-χ[e_i])*interp_W_U(a1[1])+χ[e_i]*interp_W_Ul(a1[1]))+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
                 a_guess=[grid_a[a_i]+1e-2]
 
@@ -208,16 +226,17 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
 
 
         @sync @distributed for ind in eachindex(J)
-            a_i=statestogrid_E[ind,3]
-            e_i=statestogrid_E[ind,2]
-            o_i=statestogrid_E[ind,1]
+            a_i=statestogrid_E[ind,4]
+            e_i=statestogrid_E[ind,3]
+            o_i=statestogrid_E[ind,2]
+            beq_i=statestogrid_E[ind,1]
 
             p_eo=p[o_i,e_i]
             a1=pol_a_E[ind]
 
             if e_i<n_e
-                ind1_n=[o_i-1,e_i-1,1]'*[n_e*n_a,n_a,1]
-                ind1_p=[o_i-1,(e_i+1)-1,1]'*[n_e*n_a,n_a,1]
+                ind1_n=[beq_i-1,o_i-1,e_i-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+                ind1_p=[beq_i-1,o_i-1,(e_i+1)-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                 interp_pol_σ_En=LinearInterpolation(grid_a,pol_σ_E_old[ind1_n:(ind1_n-1)+n_a];extrapolation_bc=Line())
                 interp_pol_σ_Ep=LinearInterpolation(grid_a,pol_σ_E_old[ind1_p:(ind1_p-1)+n_a];extrapolation_bc=Line())
                 σ_probn=interp_pol_σ_En(a1)
@@ -228,7 +247,7 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                 Jp=interp_Jp(a1)
                 J[ind]=(1-φ)*p_eo+β*(1-δ)*(1-ρ)*((1-α[e_i])*σ_probn*Jn+α[e_i]*σ_probp*Jp)
             elseif e_i==n_e
-                ind1=[o_i-1,e_i-1,1]'*[n_e*n_a,n_a,1]
+                ind1=[beq_i-1,o_i-1,e_i-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                 interp_pol_σ_E=LinearInterpolation(grid_a,pol_σ_E_old[ind1:(ind1-1)+n_a];extrapolation_bc=Line())
                 σ_prob=interp_pol_σ_E(a1)
                 interp_J=LinearInterpolation(grid_a,J_old[ind1:(ind1-1)+n_a];extrapolation_bc=Line())
@@ -238,7 +257,7 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
         end
 
         @sync @distributed for ind in eachindex(θ)
-            e_i=statestogrid_E[ind,2]
+            e_i=statestogrid_E[ind,3]
             θ[ind]=q_inv(κ/J[ind])
         end
 
@@ -246,29 +265,32 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
 
         # 1) W_E
         @sync @distributed for ind in eachindex(W_E)
-            a_i=statestogrid_E[ind,3]
-            e_i=statestogrid_E[ind,2]
-            o_i=statestogrid_E[ind,1]
+            a_i=statestogrid_E[ind,4]
+            e_i=statestogrid_E[ind,3]
+            o_i=statestogrid_E[ind,2]
+            beq_i=statestogrid_E[ind,1]
 
             if e_i==1
-                W_E[ind]=σ_ϵ*((V_E[ind]/σ_ϵ)+log(1+exp((V_U[a_i]-V_E[ind])/σ_ϵ)))
-                pol_σ_E[ind]=(1+exp((V_U[a_i]-V_E[ind])/σ_ϵ))^(-1)
+                W_E[ind]=σ_ϵ*((V_E[ind]/σ_ϵ)+log(1+exp((V_U[(beq_i-1)*n_a+a_i]-V_E[ind])/σ_ϵ)))
+                pol_σ_E[ind]=(1+exp((V_U[(beq_i-1)*n_a+a_i]-V_E[ind])/σ_ϵ))^(-1)
             else
-                W_E[ind]=σ_ϵ*((V_E[ind]/σ_ϵ)+log(1+exp((V_U[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+a_i]-V_E[ind])/σ_ϵ)))
-                pol_σ_E[ind]=(1+exp((V_U[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+a_i]-V_E[ind])/σ_ϵ))^(-1)
+                ind_u=n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,a_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+                W_E[ind]=σ_ϵ*((V_E[ind]/σ_ϵ)+log(1+exp((V_U[ind_u]-V_E[ind])/σ_ϵ)))
+                pol_σ_E[ind]=(1+exp((V_U[ind_u]-V_E[ind])/σ_ϵ))^(-1)
             end
         end
 
         # 2) W_U
         V_job_s=SharedArray{Float64}(length(W_U),n_o)
         @sync @distributed for ind in eachindex(W_U)
-            a_i=statestogrid_U[ind,3]
-            e_i=statestogrid_U[ind,2]
-            o_i=statestogrid_U[ind,1]
+            a_i=statestogrid_U[ind,4]
+            e_i=statestogrid_U[ind,3]
+            o_i=statestogrid_U[ind,2]
+            beq_i=statestogrid_U[ind,1]
 
             if e_i==1
                 for o1_i in 1:n_o
-                    ste=[o1_i-1,1-1,a_i]'*[n_e*n_a,n_a,1]
+                    ste=[beq_i-1,o1_i-1,1-1,a_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                     prob=P(θ[ste])
                     V_job_s[ind,o1_i]=prob*V_E[ste]+(1-prob)*V_U[ind]
                 end
@@ -291,7 +313,7 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                             e1_i=1
                             stu=ind
                         end
-                        ste=[o1_i-1,e1_i-1,a_i]'*[n_e*n_a,n_a,1]
+                        ste=[beq_i-1,o1_i-1,e1_i-1,a_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
 
                         prob=P(θ[ste])
                         V_job_s[ind,o1_i]=prob*V_E[ste]+(1-prob)*V_U[stu]
@@ -309,13 +331,13 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                             e1_i=1
                             stu=ind
                         end
-                        ste=[o1_i-1,e1_i-1,a_i]'*[n_e*n_a,n_a,1]
+                        ste=[beq_i-1,o1_i-1,e1_i-1,a_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
 
                         prob=P(θ[ste])
                         V_job_s[ind,o1_i]=prob*V_E[ste]+(1-prob)*V_U[stu]
                     end
 
-                    ste=[2-1,1-1,a_i]'*[n_e*n_a,n_a,1]
+                    ste=[beq_i-1,2-1,1-1,a_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                     stu=ind
 
                     prob=P(θ[ste])
@@ -351,21 +373,21 @@ end
 
 @everywhere function transformVPolFunctions(pol_val_functions,grids0,grid_a1)
 
-    (grid_o,grid_e,grid_a)=grids0
-    n_o,n_e,n_a=length(grid_o),length(grid_e),length(grid_a)
+    (grid_beq,grid_o,grid_e,grid_a)=grids0
+    n_beq,n_o,n_e,n_a=length(grid_beq),length(grid_o),length(grid_e),length(grid_a)
     n_anew=length(grid_a1)
 
 
     (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 
 
-    nstates_E=n_anew*n_e*n_o
-    ngrids_vars_E=[n_o,n_e,n_anew]
-    nstates_U=n_anew+n_o*(n_e-1)*n_anew
-    ngrids_vars_U=[n_o,n_e,n_anew]
+    nstates_E=n_anew*n_e*n_o*n_beq
+    ngrids_vars_E=[n_beq,n_o,n_e,n_anew]
+    nstates_U=n_beq*(n_anew+n_o*(n_e-1)*n_anew)
+    ngrids_vars_U=[n_beq,n_o,n_e-1,n_anew]
 
-    nsvars_E=3
-    nsvars_U=3
+    nsvars_E=4
+    nsvars_U=4
 
     statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
     for v in 1:nsvars_E
@@ -373,9 +395,15 @@ end
     end
 
     statestogrid_U=zeros(Int64,nstates_U,nsvars_U)
-    statestogrid_U[1:n_anew,:]=hcat(ones(n_anew,2),1:n_anew)
-    for o_i in 1:n_o
-        statestogrid_U[n_anew+(o_i-1)*(n_e-1)*n_anew+1:n_anew+o_i*(n_e-1)*n_anew,:]=hcat(o_i*ones((n_e-1)*n_anew,1),kron(2:n_e,ones(n_anew)),kron(ones(n_e-1),1:n_anew))
+    for beq_i in 1:n_beq
+        statestogrid_U[(beq_i-1)*n_anew+1:beq_i*n_anew,:]=hcat(beq_i*ones(n_anew),ones(n_anew,2),1:n_anew)
+    end
+    for v in 1:nsvars_E
+        if v==3
+            statestogrid_U[n_beq*n_anew+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(2:ngrids_vars_U[v]+1,ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        else
+            statestogrid_U[n_beq*n_anew+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(1:ngrids_vars_U[v],ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        end
     end
 
     V_Enew=zeros(nstates_E)
@@ -392,11 +420,12 @@ end
     θnew=zeros(nstates_E)
 
     for ind in eachindex(V_Enew)
-        a_i=statestogrid_E[ind,3]
-        e_i=statestogrid_E[ind,2]
-        o_i=statestogrid_E[ind,1]
+        a_i=statestogrid_E[ind,4]
+        e_i=statestogrid_E[ind,3]
+        o_i=statestogrid_E[ind,2]
+        beq_i=statestogrid_E[ind,1]
 
-        ind1=[o_i-1,e_i-1,1]'*[n_e*n_a,n_a,1]
+        ind1=[beq_i-1,o_i-1,e_i-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
 
         interp_V_E=LinearInterpolation(grid_a,V_E[ind1:(ind1-1)+n_a])
         V_Enew[ind]=interp_V_E(grid_a1[a_i])
@@ -414,14 +443,15 @@ end
     end
 
     for ind in eachindex(V_Unew)
-        a_i=statestogrid_U[ind,3]
-        e_i=statestogrid_U[ind,2]
-        o_i=statestogrid_U[ind,1]
+        a_i=statestogrid_U[ind,4]
+        e_i=statestogrid_U[ind,3]
+        o_i=statestogrid_U[ind,2]
+        beq_i=statestogrid_U[ind,1]
 
         if e_i==1
-            ind1=1
+            ind1=(n_beq-1)*n_a+1
         else
-            ind1=n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+1
+            ind1=n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,1]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
         end
 
         interp_V_U=LinearInterpolation(grid_a,V_U[ind1:(ind1-1)+n_a])
@@ -447,7 +477,7 @@ function multigrid(nGrids_a,p)
 
     for j in 1:length(nGrids_a)
         grid_a=LinRange(a_min,a_max,nGrids_a[j])
-        grids=(grid_o,grid_e,grid_a)
+        grids=(grid_beq,grid_o,grid_e,grid_a)
 
         V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,p; Guess=pol_val_functione_int)
         pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
@@ -464,16 +494,16 @@ end
 
 @everywhere function transformPola(pol_a_E,pol_a_U,grids)
 
-    (grid_o,grid_e,grid_a)=grids
-    n_o,n_e,n_a=length(grid_o),length(grid_e),length(grid_a)
+    (grid_beq,grid_o,grid_e,grid_a)=grids
+    n_beq,n_o,n_e,n_a=length(grid_beq),length(grid_o),length(grid_e),length(grid_a)
 
-    nstates_E=n_a*n_e*n_o
-    ngrids_vars_E=[n_o,n_e,n_a]
-    nstates_U=n_a+n_o*(n_e-1)*n_a
-    ngrids_vars_U=[n_o,n_e,n_a]
+    nstates_E=n_a*n_e*n_o*n_beq
+    ngrids_vars_E=[n_beq,n_o,n_e,n_a]
+    nstates_U=n_beq*(n_a+n_o*(n_e-1)*n_a)
+    ngrids_vars_U=[n_beq,n_o,n_e-1,n_a]
 
-    nsvars_E=3
-    nsvars_U=3
+    nsvars_E=4
+    nsvars_U=4
 
     statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
     for v in 1:nsvars_E
@@ -481,20 +511,26 @@ end
     end
 
     statestogrid_U=zeros(Int64,nstates_U,nsvars_U)
-    statestogrid_U[1:n_a,:]=hcat(ones(n_a,2),1:n_a)
-    for o_i in 1:n_o
-        statestogrid_U[n_a+(o_i-1)*(n_e-1)*n_a+1:n_a+o_i*(n_e-1)*n_a,:]=hcat(o_i*ones((n_e-1)*n_a,1),kron(2:n_e,ones(n_a)),kron(ones(n_e-1),1:n_a))
+    for beq_i in 1:n_beq
+        statestogrid_U[(beq_i-1)*n_a+1:beq_i*n_a,:]=hcat(beq_i*ones(n_a),ones(n_a,2),1:n_a)
+    end
+    for v in 1:nsvars_E
+        if v==3
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(2:ngrids_vars_U[v]+1,ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        else
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(1:ngrids_vars_U[v],ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        end
     end
 
     pol_a_Ei=zeros(Int64,nstates_E)
     pol_a_Ui=zeros(Int64,nstates_U)
 
     for ind in eachindex(pol_a_Ei)
-        a_i=statestogrid_E[ind,3]
-        e_i=statestogrid_E[ind,2]
-        o_i=statestogrid_E[ind,1]
+        a_i=statestogrid_E[ind,4]
+        e_i=statestogrid_E[ind,3]
+        o_i=statestogrid_E[ind,2]
+        beq_i=statestogrid_E[ind,1]
 
-        ind1=[o_i-1,e_i-1,1]'*[n_e*n_a,n_a,1]
 
         interp_aux=LinearInterpolation(grid_a,1:n_a)
         if pol_a_E[ind]<=a_max && pol_a_E[ind]>=a_min
@@ -508,15 +544,11 @@ end
     end
 
     for ind in eachindex(pol_a_Ui)
-        a_i=statestogrid_U[ind,3]
-        e_i=statestogrid_U[ind,2]
-        o_i=statestogrid_U[ind,1]
+        a_i=statestogrid_U[ind,4]
+        e_i=statestogrid_U[ind,3]
+        o_i=statestogrid_U[ind,2]
+        beq_i=statestogrid_U[ind,1]
 
-        if e_i==1
-            ind1=1
-        else
-            ind1=n_a+(o_i-1)*(n_e-1)*n_a+1
-        end
 
         interp_aux=LinearInterpolation(grid_a,1:n_a)
         if pol_a_U[ind]<=a_max && pol_a_U[ind]>=a_min

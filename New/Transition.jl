@@ -2,16 +2,17 @@
 
 function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=200)
 
-    (grid_o,grid_e,grid_a)=grids
+    (grid_beq,grid_o,grid_e,grid_a)=grids
     grid_a0=LinRange(grid_a[1],grid_a[end],200)
-    grids0=(grid_o,grid_e,grid_a0)
+    grids0=(grid_beq,grid_o,grid_e,grid_a0)
 
     @eval @everywhere grid_a=$grid_a
     @eval @everywhere grid_a0=$grid_a0
 
-    n_o,n_e,n_a=length(grid_o),length(grid_e),length(grid_a)
+    n_beq,n_o,n_e,n_a=length(grid_beq),length(grid_o),length(grid_e),length(grid_a)
     n_a0=length(grid_a0)
 
+    @eval @everywhere n_beq=$n_beq
     @eval @everywhere n_o=$n_o
     @eval @everywhere n_e=$n_e
     @eval @everywhere n_a=$n_a
@@ -80,10 +81,10 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     nstates=length(Φss)
     nstates_E=length(V_Ess)
     nstates_U=length(V_Uss)
-    nsvars_E=3
-    ngrids_vars_E=[n_o,n_e,n_a]
-    nsvars_U=3
-    ngrids_vars_U=[n_o,n_e,n_a]
+    nsvars_E=4
+    ngrids_vars_E=[n_beq,n_o,n_e,n_a]
+    nsvars_U=4
+    ngrids_vars_U=[n_beq,n_o,n_e-1,n_a]
 
     statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
     for v in 1:nsvars_E
@@ -91,9 +92,15 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     end
 
     statestogrid_U=zeros(Int64,nstates_U,nsvars_U)
-    statestogrid_U[1:n_a,:]=hcat(ones(n_a,2),1:n_a)
-    for o_i in 1:n_o
-        statestogrid_U[n_a+(o_i-1)*(n_e-1)*n_a+1:n_a+o_i*(n_e-1)*n_a,:]=hcat(o_i*ones((n_e-1)*n_a,1),kron(2:n_e,ones(n_a)),kron(ones(n_e-1),1:n_a))
+    for beq_i in 1:n_beq
+        statestogrid_U[(beq_i-1)*n_a+1:beq_i*n_a,:]=hcat(beq_i*ones(n_a),ones(n_a,2),1:n_a)
+    end
+    for v in 1:nsvars_E
+        if v==3
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(2:ngrids_vars_U[v]+1,ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        else
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(1:ngrids_vars_U[v],ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        end
     end
 
     statestogrid=[hcat(ones(Int64,size(statestogrid_E,1),1),statestogrid_E);hcat(2*ones(Int64,size(statestogrid_U,1),1),statestogrid_U)]
@@ -103,12 +110,12 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     @eval @everywhere statestogrid=$statestogrid
 
 
-    nstates_E0=n_o*n_e*n_a0
-    nstates_U0=n_a0+n_o*(n_e-1)*n_a0
-    nsvars_E0=3
-    ngrids_vars_E0=[n_o,n_e,n_a0]
-    nsvars_U0=3
-    ngrids_vars_U0=[n_o,n_e,n_a0]
+    nstates_E0=n_beq*n_o*n_e*n_a0
+    nstates_U0=n_beq*(n_a0+n_o*(n_e-1)*n_a0)
+    nsvars_E0=4
+    ngrids_vars_E0=[n_beq,n_o,n_e,n_a0]
+    nsvars_U0=4
+    ngrids_vars_U0=[n_beq,n_o,n_e-1,n_a0]
 
     statestogrid_E0=zeros(Int64,nstates_E0,nsvars_E0)
     for v in 1:nsvars_E0
@@ -116,9 +123,15 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     end
 
     statestogrid_U0=zeros(Int64,nstates_U0,nsvars_U0)
-    statestogrid_U0[1:n_a0,:]=hcat(ones(n_a0,2),1:n_a0)
-    for o_i in 1:n_o
-        statestogrid_U0[n_a0+(o_i-1)*(n_e-1)*n_a0+1:n_a0+o_i*(n_e-1)*n_a0,:]=hcat(o_i*ones((n_e-1)*n_a0,1),kron(2:n_e,ones(n_a0)),kron(ones(n_e-1),1:n_a0))
+    for beq_i in 1:n_beq
+        statestogrid_U0[(beq_i-1)*n_a0+1:beq_i*n_a0,:]=hcat(beq_i*ones(n_a0),ones(n_a0,2),1:n_a0)
+    end
+    for v in 1:nsvars_E
+        if v==3
+            statestogrid_U0[n_beq*n_a0+1:end,v]=kron(ones(prod(ngrids_vars_U0[1:v-1]),1),kron(2:ngrids_vars_U0[v]+1,ones(prod(ngrids_vars_U0[v+1:nsvars_U0]),1)))
+        else
+            statestogrid_U0[n_beq*n_a0+1:end,v]=kron(ones(prod(ngrids_vars_U0[1:v-1]),1),kron(1:ngrids_vars_U0[v],ones(prod(ngrids_vars_U0[v+1:nsvars_U0]),1)))
+        end
     end
 
     statestogrid0=[hcat(ones(Int64,size(statestogrid_E0,1),1),statestogrid_E0);hcat(2*ones(Int64,size(statestogrid_U0,1),1),statestogrid_U0)]
@@ -153,6 +166,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere P(θ)=min(m*θ^(1-ξ),1)
     @everywhere q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
+    @everywhere bequest(λ_1,λ_2,beq)=λ_1*((beq+λ_2)^(1-σ)-1)
 
     error=1000
 
@@ -233,22 +247,24 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
             # 1) V_E
             @sync @distributed for ind in eachindex(V_Eaux[:,t])
-                a_i=statestogrid_E0[ind,3]
-                e_i=statestogrid_E0[ind,2]
-                o_i=statestogrid_E0[ind,1]
+                a_i=statestogrid_E0[ind,4]
+                e_i=statestogrid_E0[ind,3]
+                o_i=statestogrid_E0[ind,2]
+                beq_i=statestogrid_E0[ind,1]
 
                 p_eo=p0[o_i,e_i]
 
                 a_guess=[grid_a0[a_i]+1e-2]
 
                 if e_i==1
-                    interp_V_U=LinearInterpolation(grid_a_aux,V_U_old[1:n_a_aux];extrapolation_bc=Line())
-                    ind1_en=[o_i-1,1-1,1]'*[n_e*n_a_aux,n_a_aux,1]
+                    interp_V_U=LinearInterpolation(grid_a_aux,V_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
+                    ind1_en=[beq_i-1,o_i-1,1-1,1]'*[n_o*n_e*n_a_aux,n_e*n_a_aux,n_a_aux,1]
                     interp_W_En=LinearInterpolation(grid_a_aux,W_E_old[ind1_en:(ind1_en-1)+n_a_aux];extrapolation_bc=Line())
-                    ind1_ep=[o_i-1,2-1,1]'*[n_e*n_a_aux,n_a_aux,1]
+                    ind1_ep=[beq_i-1,o_i-1,2-1,1]'*[n_o*n_e*n_a_aux,n_e*n_a_aux,n_a_aux,1]
                     interp_W_Ep=LinearInterpolation(grid_a_aux,W_E_old[ind1_ep:(ind1_ep-1)+n_a_aux];extrapolation_bc=Line())
 
-                    Veval_0(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
+                    Veval_0(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
+                    β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
                     if Veval_0(a_min)<Veval_0(a_min+1e-12)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_0(a_min)
@@ -258,15 +274,17 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                         V_Eaux[ind,t]=-opt.minimum
                     end
                 elseif e_i<n_e
-                    interp_V_Ud=LinearInterpolation(grid_a_aux,V_U_old[1:n_a_aux];extrapolation_bc=Line())
-                    interp_V_U=LinearInterpolation(grid_a_aux,V_U_old[n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-2)*n_a_aux+1:n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-1)*n_a_aux];extrapolation_bc=Line())
-                    ind1_en=[o_i-1,e_i-1,1]'*[n_e*n_a_aux,n_a_aux,1]
+                    interp_V_Ud=LinearInterpolation(grid_a_aux,V_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
+                    ind1_u=n_beq*n_a_aux+[beq_i-1,o_i-1,(e_i-1)-1,1]'*[n_o*(n_e-1)*n_a_aux,(n_e-1)*n_a_aux,n_a_aux,1]
+                    interp_V_U=LinearInterpolation(grid_a_aux,V_U_old[ind1_u:(ind1_u-1)+n_a_aux];extrapolation_bc=Line())
+                    ind1_en=[beq_i-1,o_i-1,e_i-1,1]'*[n_o*n_e*n_a_aux,n_e*n_a_aux,n_a_aux,1]
                     interp_W_En=LinearInterpolation(grid_a_aux,W_E_old[ind1_en:(ind1_en-1)+n_a_aux];extrapolation_bc=Line())
-                    ind1_ep=[o_i-1,(e_i+1)-1,1]'*[n_e*n_a_aux,n_a_aux,1]
+                    ind1_ep=[beq_i-1,o_i-1,(e_i+1)-1,1]'*[n_o*n_e*n_a_aux,n_e*n_a_aux,n_a_aux,1]
                     interp_W_Ep=LinearInterpolation(grid_a_aux,W_E_old[ind1_ep:(ind1_ep-1)+n_a_aux];extrapolation_bc=Line())
 
 
-                    Veval_1(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
+                    Veval_1(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
+                    β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
                     if Veval_1(a_min)<Veval_1(a_min+1e-12)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_1(a_min)
@@ -276,12 +294,14 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                         V_Eaux[ind,t]=-opt.minimum
                     end
                 elseif e_i==n_e
-                    interp_V_Ud=LinearInterpolation(grid_a_aux,V_U_old[1:n_a_aux];extrapolation_bc=Line())
-                    interp_V_U=LinearInterpolation(grid_a_aux,V_U_old[n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-2)*n_a_aux+1:n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-1)*n_a_aux];extrapolation_bc=Line())
-                    ind1_e=[o_i-1,e_i-1,1]'*[n_e*n_a_aux,n_a_aux,1]
+                    interp_V_Ud=LinearInterpolation(grid_a_aux,V_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
+                    ind1_u=n_beq*n_a_aux+[beq_i-1,o_i-1,(e_i-1)-1,1]'*[n_o*(n_e-1)*n_a_aux,(n_e-1)*n_a_aux,n_a_aux,1]
+                    interp_V_U=LinearInterpolation(grid_a_aux,V_U_old[ind1_u:(ind1_u-1)+n_a_aux];extrapolation_bc=Line())
+                    ind1_e=[beq_i-1,o_i-1,e_i-1,1]'*[n_o*n_e*n_a_aux,n_e*n_a_aux,n_a_aux,1]
                     interp_W_E=LinearInterpolation(grid_a_aux,W_E_old[ind1_e:(ind1_e-1)+n_a_aux];extrapolation_bc=Line())
 
-                    Veval_2(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*interp_W_E(a1[1])))
+                    Veval_2(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*interp_W_E(a1[1]))+
+                    β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
                     if Veval_2(a_min)<Veval_2(a_min+1e-12)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_2(a_min)
@@ -296,16 +316,17 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
             # 2) V_U
             @sync @distributed for ind in eachindex(V_Uaux[:,t])
-                a_i=statestogrid_U0[ind,3]
-                e_i=statestogrid_U0[ind,2]
-                o_i=statestogrid_U0[ind,1]
+                a_i=statestogrid_U0[ind,4]
+                e_i=statestogrid_U0[ind,3]
+                o_i=statestogrid_U0[ind,2]
+                beq_i=statestogrid_U0[ind,1]
 
                 ub=b*p0[o_i,e_i]
 
                 if e_i==1
-                    interp_W_U=LinearInterpolation(grid_a_aux,W_U_old[1:n_a_aux];extrapolation_bc=Line())
+                    interp_W_U=LinearInterpolation(grid_a_aux,W_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
 
-                    Veval_0(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*interp_W_U(a1[1]))
+                    Veval_0(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*interp_W_U(a1[1])+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
                     a_guess=[grid_a0[a_i]+1e-2]
 
@@ -318,15 +339,18 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                         V_Uaux[ind,t]=-opt.minimum
                     end
                 else
-                    interp_W_Ud=LinearInterpolation(grid_a_aux,W_U_old[1:n_a_aux];extrapolation_bc=Line())
+                    interp_W_Ud=LinearInterpolation(grid_a_aux,W_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
                     if e_i==2
-                        interp_W_Ul=LinearInterpolation(grid_a_aux,W_U_old[1:n_a_aux];extrapolation_bc=Line())
+                        interp_W_Ul=LinearInterpolation(grid_a_aux,W_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
                     elseif e_i>2
-                        interp_W_Ul=LinearInterpolation(grid_a_aux,W_U_old[n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-3)*n_a_aux+1:n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-2)*n_a_aux];extrapolation_bc=Line())
+                        ind_ul=n_beq*n_a_aux+[beq_i-1,o_i-1,(e_i-2)-1,1]'*[n_o*(n_e-1)*n_a_aux,(n_e-1)*n_a_aux,n_a_aux,1]
+                        interp_W_Ul=LinearInterpolation(grid_a_aux,W_U_old[ind_ul:(ind_ul-1)+n_a_aux];extrapolation_bc=Line())
                     end
-                    interp_W_U=LinearInterpolation(grid_a_aux,W_U_old[n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-2)*n_a_aux+1:n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-1)*n_a_aux];extrapolation_bc=Line())
+                    ind_u=n_beq*n_a_aux+[beq_i-1,o_i-1,(e_i-1)-1,1]'*[n_o*(n_e-1)*n_a_aux,(n_e-1)*n_a_aux,n_a_aux,1]
+                    interp_W_U=LinearInterpolation(grid_a_aux,W_U_old[ind_u:(ind_u-1)+n_a_aux];extrapolation_bc=Line())
 
-                    Veval_1(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*((1-χ[e_i])*interp_W_U(a1[1])+χ[e_i]*interp_W_Ul(a1[1])))
+                    Veval_1(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*((1-χ[e_i])*interp_W_U(a1[1])+χ[e_i]*interp_W_Ul(a1[1]))+
+                    β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
                     a_guess=[grid_a0[a_i]+1e-2]
 
@@ -353,16 +377,17 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
             @eval @everywhere pol_σ_E_old=$pol_σ_E_old
 
             @sync @distributed for ind in eachindex(Jaux[:,t])
-                a_i=statestogrid_E0[ind,3]
-                e_i=statestogrid_E0[ind,2]
-                o_i=statestogrid_E0[ind,1]
+                a_i=statestogrid_E0[ind,4]
+                e_i=statestogrid_E0[ind,3]
+                o_i=statestogrid_E0[ind,2]
+                beq_i=statestogrid_E0[ind,1]
 
                 p_eo=p0[o_i,e_i]
                 a1=pol_a_Eaux[ind,t]
 
                 if e_i<n_e
-                    ind1_n=[o_i-1,e_i-1,1]'*[n_e*n_a_aux,n_a_aux,1]
-                    ind1_p=[o_i-1,(e_i+1)-1,1]'*[n_e*n_a_aux,n_a_aux,1]
+                    ind1_n=[beq_i-1,o_i-1,e_i-1,1]'*[n_o*n_e*n_a_aux,n_e*n_a_aux,n_a_aux,1]
+                    ind1_p=[beq_i-1,o_i-1,(e_i+1)-1,1]'*[n_o*n_e*n_a_aux,n_e*n_a_aux,n_a_aux,1]
                     interp_pol_σ_En=LinearInterpolation(grid_a_aux,pol_σ_E_old[ind1_n:(ind1_n-1)+n_a_aux];extrapolation_bc=Line())
                     interp_pol_σ_Ep=LinearInterpolation(grid_a_aux,pol_σ_E_old[ind1_p:(ind1_p-1)+n_a_aux];extrapolation_bc=Line())
                     σ_probn=interp_pol_σ_En(a1)
@@ -373,7 +398,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                     Jp=interp_Jp(a1)
                     Jaux[ind,t]=pt[t][o_i,e_i]-φ*p_eo+β*(1-δ)*(1-ρ)*((1-α[e_i])*σ_probn*Jn+α[e_i]*σ_probp*Jp)
                 elseif e_i==n_e
-                    ind1=[o_i-1,e_i-1,1]'*[n_e*n_a_aux,n_a_aux,1]
+                    ind1=[beq_i-1,o_i-1,e_i-1,1]'*[n_o*n_e*n_a_aux,n_e*n_a_aux,n_a_aux,1]
                     interp_pol_σ_E=LinearInterpolation(grid_a_aux,pol_σ_E_old[ind1:(ind1-1)+n_a_aux];extrapolation_bc=Line())
                     σ_prob=interp_pol_σ_E(a1)
                     interp_J=LinearInterpolation(grid_a_aux,J_old[ind1:(ind1-1)+n_a_aux];extrapolation_bc=Line())
@@ -383,61 +408,93 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
             end
 
             @sync @distributed for ind in eachindex(θaux[:,t])
-                e_i=statestogrid_E0[ind,2]
+                e_i=statestogrid_E0[ind,3]
                 θaux[ind,t]=q_inv(κ/(Jaux[ind,t]))
             end
 
             # 1) W_E
             @sync @distributed for ind in eachindex(W_Eaux[:,t])
-                a_i=statestogrid_E0[ind,3]
-                e_i=statestogrid_E0[ind,2]
-                o_i=statestogrid_E0[ind,1]
+                a_i=statestogrid_E0[ind,4]
+                e_i=statestogrid_E0[ind,3]
+                o_i=statestogrid_E0[ind,2]
+                beq_i=statestogrid_E0[ind,1]
 
                 if e_i==1
-                    W_Eaux[ind,t]=σ_ϵ*((V_Eaux[ind,t]/σ_ϵ)+log(1+exp((V_Uaux[a_i,t]-V_Eaux[ind,t])/σ_ϵ)))
-                    pol_σ_Eaux[ind,t]=(1+exp((V_Uaux[a_i,t]-V_Eaux[ind,t])/σ_ϵ))^(-1)
+                    W_Eaux[ind,t]=σ_ϵ*((V_Eaux[ind,t]/σ_ϵ)+log(1+exp((V_Uaux[(beq_i-1)*n_a0+a_i,t]-V_Eaux[ind,t])/σ_ϵ)))
+                    pol_σ_Eaux[ind,t]=(1+exp((V_Uaux[(beq_i-1)*n_a0+a_i,t]-V_Eaux[ind,t])/σ_ϵ))^(-1)
                 else
-                    W_Eaux[ind,t]=σ_ϵ*((V_Eaux[ind,t]/σ_ϵ)+log(1+exp((V_Uaux[n_a0+(o_i-1)*(n_e-1)*n_a0+(e_i-2)*n_a0+a_i,t]-V_Eaux[ind,t])/σ_ϵ)))
-                    pol_σ_Eaux[ind,t]=(1+exp((V_Uaux[n_a0+(o_i-1)*(n_e-1)*n_a0+(e_i-2)*n_a0+a_i,t]-V_Eaux[ind,t])/σ_ϵ))^(-1)
+                    ind_u=n_beq*n_a0+[beq_i-1,o_i-1,(e_i-1)-1,a_i]'*[n_o*(n_e-1)*n_a0,(n_e-1)*n_a0,n_a0,1]
+                    W_Eaux[ind,t]=σ_ϵ*((V_Eaux[ind,t]/σ_ϵ)+log(1+exp((V_Uaux[ind_u,t]-V_Eaux[ind,t])/σ_ϵ)))
+                    pol_σ_Eaux[ind,t]=(1+exp((V_Uaux[ind_u,t]-V_Eaux[ind,t])/σ_ϵ))^(-1)
                 end
             end
 
             # 2) W_U
             V_job_s=SharedArray{Float64}(nstates_U,n_o)
             @sync @distributed for ind in eachindex(W_Uaux[:,t])
-                a_i=statestogrid_U0[ind,3]
-                e_i=statestogrid_U0[ind,2]
-                o_i=statestogrid_U0[ind,1]
-
+                a_i=statestogrid_U0[ind,4]
+                e_i=statestogrid_U0[ind,3]
+                o_i=statestogrid_U0[ind,2]
+                beq_i=statestogrid_U0[ind,1]
 
                 if e_i==1
                     for o1_i in 1:n_o
-                        ste=[o1_i-1,1-1,a_i]'*[n_e*n_a0,n_a0,1]
+                        ste=[beq_i-1,o1_i-1,1-1,a_i]'*[n_o*n_e*n_a0,n_e*n_a0,n_a0,1]
                         prob=P(θaux[ste,t])
                         V_job_s[ind,o1_i]=prob*V_Eaux[ste,t]+(1-prob)*V_Uaux[ind,t]
                     end
 
-                    W_Uaux[ind,t]=σ_ϵ*((V_job_s[ind,1]/σ_ϵ)+log(1+sum(exp.((V_job_s[ind,2:end].-V_job_s[ind,1])/σ_ϵ))))
+                    W_Uaux[ind,t]=σ_ϵ*((V_job_s[ind,1]/σ_ϵ)+log(1+(O-1)*exp((V_job_s[ind,2]-V_job_s[ind,1])/σ_ϵ)))
                     for o1_i in 1:n_o
-                        pol_σ_Uaux[ind,o1_i,t]=(sum(exp.((V_job_s[ind,:].-V_job_s[ind,o1_i])/σ_ϵ)))^(-1)
+                        if o1_i==1
+                            pol_σ_Uaux[ind,o1_i,t]=(1+(O-1)*exp((V_job_s[ind,2]-V_job_s[ind,o1_i])/σ_ϵ))^(-1)
+                        else
+                            pol_σ_Uaux[ind,o1_i,t]=(1+(1/(O-1))*exp((V_job_s[ind,1]-V_job_s[ind,o1_i])/σ_ϵ))^(-1)
+                        end
                     end
                 else
-                    for o1_i in 1:n_o
-                        if o1_i==o_i
-                            e1_i=e_i
-                            stu=ind
-                        else
-                            e1_i=1
-                            stu=ind
-                        end
-                        ste=[o1_i-1,e1_i-1,a_i]'*[n_e*n_a0,n_a0,1]
-                        prob=P(θaux[ste,t])
-                        V_job_s[ind,o1_i]=prob*V_Eaux[ste,t]+(1-prob)*V_Uaux[stu,t]
-                    end
+                    if o_i==1
+                        for o1_i in 1:n_o
+                            if o1_i==o_i
+                                e1_i=e_i
+                                stu=ind
+                            else
+                                e1_i=1
+                                stu=ind
+                            end
+                            ste=[beq_i-1,o1_i-1,e1_i-1,a_i]'*[n_o*n_e*n_a0,n_e*n_a0,n_a0,1]
 
-                    W_Uaux[ind,t]=σ_ϵ*((V_job_s[ind,1]/σ_ϵ)+log(1+sum(exp.((V_job_s[ind,2:end].-V_job_s[ind,1])/σ_ϵ))))
-                    for o1_i in 1:n_o
-                        pol_σ_Uaux[ind,o1_i,t]=(sum(exp.((V_job_s[ind,:].-V_job_s[ind,o1_i])/σ_ϵ)))^(-1)
+                            prob=P(θaux[ste,t])
+                            V_job_s[ind,o1_i]=prob*V_Eaux[ste,t]+(1-prob)*V_Uaux[stu,t]
+                        end
+
+                        W_Uaux[ind,t]=σ_ϵ*((V_job_s[ind,1]/σ_ϵ)+log(1+(O-1)*exp((V_job_s[ind,2]-V_job_s[ind,1])/σ_ϵ)))
+                        pol_σ_Uaux[ind,1,t]=(1+(O-1)*exp((V_job_s[ind,2]-V_job_s[ind,1])/σ_ϵ))^(-1)
+                        pol_σ_Uaux[ind,2,t]=(1+(1/(O-1))*exp((V_job_s[ind,1]-V_job_s[ind,2])/σ_ϵ))^(-1)
+                    elseif o_i==2
+                        for o1_i in 1:n_o
+                            if o1_i==o_i
+                                e1_i=e_i
+                                stu=ind
+                            else
+                                e1_i=1
+                                stu=ind
+                            end
+                            ste=[beq_i-1,o1_i-1,e1_i-1,a_i]'*[n_o*n_e*n_a0,n_e*n_a0,n_a0,1]
+
+                            prob=P(θaux[ste,t])
+                            V_job_s[ind,o1_i]=prob*V_Eaux[ste,t]+(1-prob)*V_Uaux[stu,t]
+                        end
+
+                        ste=[beq_i-1,2-1,1-1,a_i]'*[n_o*n_e*n_a0,n_e*n_a0,n_a0,1]
+                        stu=ind
+
+                        prob=P(θaux[ste,t])
+                        V_job2inexperienced=prob*V_Eaux[ste,t]+(1-prob)*V_Uaux[stu,t]
+
+                        W_Uaux[ind,t]=σ_ϵ*((V_job_s[ind,1]/σ_ϵ)+log(1+exp((V_job_s[ind,2]-V_job_s[ind,1])/σ_ϵ)+(O-2)*exp((V_job2inexperienced-V_job_s[ind,1])/σ_ϵ)))
+                        pol_σ_Uaux[ind,1,t]=(1+exp((V_job_s[ind,2]-V_job_s[ind,1])/σ_ϵ)+(O-2)*exp((V_job2inexperienced-V_job_s[ind,1])/σ_ϵ))^(-1)
+                        pol_σ_Uaux[ind,2,t]=(1+exp((V_job_s[ind,1]-V_job_s[ind,2])/σ_ϵ)+(O-2)*exp((V_job2inexperienced-V_job_s[ind,2])/σ_ϵ))^(-1)
                     end
                 end
             end
@@ -465,47 +522,28 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
             k=Float64[]
 
             for ind in 1:nstates
-                a_i=statestogrid[ind,4]
-                e_i=statestogrid[ind,3]
-                o_i=statestogrid[ind,2]
+                a_i=statestogrid[ind,5]
+                e_i=statestogrid[ind,4]
+                o_i=statestogrid[ind,3]
+                beq_i=statestogrid[ind,2]
                 s_i=statestogrid[ind,1]
 
                 if s_i==1
 
-                    indE=[o_i-1,e_i-1,a_i]'*[n_e*n_a,n_a,1]
+                    indE=[beq_i-1,o_i-1,e_i-1,a_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                     if t==0
                         a1_i=pol_a_Eiss[indE]
                     else
                         a1_i=pol_a_Ei[indE,t]
                     end
+
+                    ind1_ud=zeros(Int64,n_beq)
+
                     if e_i==1
-                        ind1_en=[o_i-1,e_i-1,a1_i]'*[n_e*n_a,n_a,1]
-                        ind1_ep=[o_i-1,(e_i+1)-1,a1_i]'*[n_e*n_a,n_a,1]
-                        ind1_un=n_o*n_e*n_a+a1_i
-                        ind1_up=n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a+a1_i
-
-                        push!(i,ind)
-                        push!(j,ind1_en)
-                        push!(k,(1-δ)*(1-ρ)*(1-α[e_i])*pol_σ_E[ind1_en,t+1])
-
-                        push!(i,ind)
-                        push!(j,ind1_un)
-                        push!(k,(1-δ)*(1-ρ)*(1-α[e_i])*(1-pol_σ_E[ind1_en,t+1])+(1-δ)*ρ+δ)
-
-                        push!(i,ind)
-                        push!(j,ind1_ep)
-                        push!(k,(1-δ)*(1-ρ)*α[e_i]*pol_σ_E[ind1_ep,t+1])
-
-                        push!(i,ind)
-                        push!(j,ind1_up)
-                        push!(k,(1-δ)*(1-ρ)*α[e_i]*(1-pol_σ_E[ind1_ep,t+1]))
-
-                    elseif e_i<n_e
-                        ind1_en=[o_i-1,e_i-1,a1_i]'*[n_e*n_a,n_a,1]
-                        ind1_ep=[o_i-1,(e_i+1)-1,a1_i]'*[n_e*n_a,n_a,1]
-                        ind1_un=n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+a1_i
-                        ind1_up=n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a+a1_i
-                        ind1_ud=n_o*n_e*n_a+a1_i
+                        ind1_en=[beq_i-1,o_i-1,e_i-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+                        ind1_ep=[beq_i-1,o_i-1,(e_i+1)-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+                        ind1_un=n_beq*n_o*n_e*n_a+(beq_i-1)*n_a+a1_i
+                        ind1_up=n_beq*n_o*n_e*n_a+n_beq*n_a+[beq_i-1,o_i-1,(e_i)-1,a1_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
 
                         push!(i,ind)
                         push!(j,ind1_en)
@@ -523,14 +561,48 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                         push!(j,ind1_up)
                         push!(k,(1-δ)*(1-ρ)*α[e_i]*(1-pol_σ_E[ind1_ep,t+1]))
 
+                        for beq1_i in 1:n_beq
+                            ind1_ud[beq1_i]=n_beq*n_o*n_e*n_a+(beq1_i-1)*n_a+a1_i
+
+                            push!(i,ind)
+                            push!(j,ind1_ud[beq1_i])
+                            push!(k,δ/n_beq)
+                        end
+
+                    elseif e_i<n_e
+                        ind1_en=[beq_i-1,o_i-1,e_i-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+                        ind1_ep=[beq_i-1,o_i-1,(e_i+1)-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+                        ind1_un=n_beq*n_o*n_e*n_a+n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,a1_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+                        ind1_up=n_beq*n_o*n_e*n_a+n_beq*n_a+[beq_i-1,o_i-1,(e_i)-1,a1_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+
                         push!(i,ind)
-                        push!(j,ind1_ud)
-                        push!(k,δ)
+                        push!(j,ind1_en)
+                        push!(k,(1-δ)*(1-ρ)*(1-α[e_i])*pol_σ_E[ind1_en,t+1])
+
+                        push!(i,ind)
+                        push!(j,ind1_un)
+                        push!(k,(1-δ)*(1-ρ)*(1-α[e_i])*(1-pol_σ_E[ind1_en,t+1])+(1-δ)*ρ)
+
+                        push!(i,ind)
+                        push!(j,ind1_ep)
+                        push!(k,(1-δ)*(1-ρ)*α[e_i]*pol_σ_E[ind1_ep,t+1])
+
+                        push!(i,ind)
+                        push!(j,ind1_up)
+                        push!(k,(1-δ)*(1-ρ)*α[e_i]*(1-pol_σ_E[ind1_ep,t+1]))
+
+                        for beq1_i in 1:n_beq
+                            ind1_ud[beq1_i]=n_beq*n_o*n_e*n_a+(beq1_i-1)*n_a+a1_i
+
+                            push!(i,ind)
+                            push!(j,ind1_ud[beq1_i])
+                            push!(k,δ/n_beq)
+                        end
+
 
                     elseif e_i==n_e
-                        ind1_e=[o_i-1,e_i-1,a1_i]'*[n_e*n_a,n_a,1]
-                        ind1_un=n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+a1_i
-                        ind1_ud=n_o*n_e*n_a+a1_i
+                        ind1_e=[beq_i-1,o_i-1,e_i-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+                        ind1_un=n_beq*n_o*n_e*n_a+n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,a1_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
 
                         push!(i,ind)
                         push!(j,ind1_e)
@@ -540,21 +612,26 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                         push!(j,ind1_un)
                         push!(k,(1-δ)*(1-ρ)*(1-pol_σ_E[ind1_e,t+1])+(1-δ)*ρ)
 
-                        push!(i,ind)
-                        push!(j,ind1_ud)
-                        push!(k,δ)
+                        for beq1_i in 1:n_beq
+                            ind1_ud[beq1_i]=n_beq*n_o*n_e*n_a+(beq1_i-1)*n_a+a1_i
+
+                            push!(i,ind)
+                            push!(j,ind1_ud[beq1_i])
+                            push!(k,δ/n_beq)
+                        end
                     end
 
 
                 elseif s_i==2
 
                     if e_i==1
-                        indU=a_i
+                        indU=(beq_i-1)*n_a+a_i
                     else
-                        indU=n_a+(o_i-1)*(n_e-1)*n_a+a_i
+                        indU=n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,a_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
                     end
 
                     ind1_u=zeros(Int64,n_o)
+                    ind1_ud=zeros(Int64,n_beq)
                     ind1_e=zeros(Int64,n_o)
 
                     if t==0
@@ -566,16 +643,16 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                     if e_i==1
 
                         for o1_i in 1:n_o
-                            ind1_u[o1_i]=n_o*n_e*n_a+a1_i
-                            ind1_e[o1_i]=[o1_i-1,e_i-1,a1_i]'*[n_e*n_a,n_a,1]
+                            ind1_u[o1_i]=n_beq*n_o*n_e*n_a+(beq_i-1)*n_a+a1_i
+                            ind1_e[o1_i]=[beq_i-1,o1_i-1,e_i-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
 
                             push!(i,ind)
                             push!(j,ind1_e[o1_i])
-                            push!(k,(1-δ)*pol_σ_U[a1_i,o1_i,t+1]*P(θ[ind1_e[o1_i],t+1]))
+                            push!(k,(1-δ)*pol_σ_U[ind1_u[o1_i]-nstates_E,o1_i,t+1]*P(θ[ind1_e[o1_i],t+1]))
 
                             push!(i,ind)
                             push!(j,ind1_u[o1_i])
-                            push!(k,(1-δ)*pol_σ_U[a1_i,o1_i,t+1]*(1-P(θ[ind1_e[o1_i],t+1])))
+                            push!(k,(1-δ)*pol_σ_U[ind1_u[o1_i]-nstates_E,o1_i,t+1]*(1-P(θ[ind1_e[o1_i],t+1])))
                         end
 
                     else
@@ -583,58 +660,101 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                         for o1_i in 1:n_o
                             if o1_i==o_i
                                 ind1_u[o1_i]=ind
-                                ind1_e[o1_i]=[o1_i-1,e_i-1,a1_i]'*[n_e*n_a,n_a,1]
+                                ind1_e[o1_i]=[beq_i-1,o1_i-1,e_i-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                             else
                                 ind1_u[o1_i]=ind
-                                ind1_e[o1_i]=[o1_i-1,1-1,a1_i]'*[n_e*n_a,n_a,1]
+                                ind1_e[o1_i]=[beq_i-1,o1_i-1,1-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                             end
 
                             push!(i,ind)
                             push!(j,ind1_e[o1_i])
-                            push!(k,(1-δ)*(1-χ[e_i])*pol_σ_U[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+a1_i,o1_i,t+1]*P(θ[ind1_e[o1_i],t+1]))
+                            push!(k,(1-δ)*(1-χ[e_i])*pol_σ_U[ind1_u[o1_i]-nstates_E,o1_i,t+1]*P(θ[ind1_e[o1_i],t+1]))
 
                             push!(i,ind)
                             push!(j,ind1_u[o1_i])
-                            push!(k,(1-δ)*(1-χ[e_i])*pol_σ_U[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+a1_i,o1_i,t+1]*(1-P(θ[ind1_e[o1_i],t+1])))
+                            push!(k,(1-δ)*(1-χ[e_i])*pol_σ_U[ind1_u[o1_i]-nstates_E,o1_i,t+1]*(1-P(θ[ind1_e[o1_i],t+1])))
 
                             if e_i==2
 
-                                ind1_u[o1_i]=n_o*n_e*n_a+a1_i
-                                ind1_e[o1_i]=[o1_i-1,1-1,a1_i]'*[n_e*n_a,n_a,1]
+                                ind1_u[o1_i]=n_beq*n_o*n_e*n_a+(beq_i-1)*n_a+a1_i
+                                ind1_e[o1_i]=[beq_i-1,o1_i-1,1-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
 
                                 push!(i,ind)
                                 push!(j,ind1_e[o1_i])
-                                push!(k,(1-δ)*χ[e_i]*pol_σ_U[a1_i,o1_i,t+1]*P(θ[ind1_e[o1_i],t+1]))
+                                push!(k,(1-δ)*χ[e_i]*pol_σ_U[ind1_u[o1_i]-nstates_E,o1_i,t+1]*P(θ[ind1_e[o1_i],t+1]))
 
                                 push!(i,ind)
                                 push!(j,ind1_u[o1_i])
-                                push!(k,(1-δ)*χ[e_i]*pol_σ_U[a1_i,o1_i,t+1]*(1-P(θ[ind1_e[o1_i],t+1])))
+                                push!(k,(1-δ)*χ[e_i]*pol_σ_U[ind1_u[o1_i]-nstates_E,o1_i,t+1]*(1-P(θ[ind1_e[o1_i],t+1])))
 
                             else
                                 if o1_i==o_i
-                                    ind1_u[o1_i]=n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-3)*n_a+a1_i
-                                    ind1_e[o1_i]=[o1_i-1,(e_i-1)-1,a1_i]'*[n_e*n_a,n_a,1]
+                                    ind1_u[o1_i]=n_beq*n_o*n_e*n_a+n_beq*n_a+[beq_i-1,o_i-1,(e_i-2)-1,a1_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+                                    ind1_e[o1_i]=[beq_i-1,o1_i-1,(e_i-1)-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                                 else
-                                    ind1_u[o1_i]=n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-3)*n_a+a1_i
-                                    ind1_e[o1_i]=[o1_i-1,1-1,a1_i]'*[n_e*n_a,n_a,1]
+                                    ind1_u[o1_i]=n_beq*n_o*n_e*n_a+n_beq*n_a+[beq_i-1,o_i-1,(e_i-2)-1,a1_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+                                    ind1_e[o1_i]=[beq_i-1,o1_i-1,1-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
                                 end
 
                                 push!(i,ind)
                                 push!(j,ind1_e[o1_i])
-                                push!(k,(1-δ)*χ[e_i]*pol_σ_U[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-3)*n_a+a1_i,o1_i,t+1]*P(θ[ind1_e[o1_i],t+1]))
+                                push!(k,(1-δ)*χ[e_i]*pol_σ_U[ind1_u[o1_i]-nstates_E,o1_i,t+1]*P(θ[ind1_e[o1_i],t+1]))
 
                                 push!(i,ind)
                                 push!(j,ind1_u[o1_i])
-                                push!(k,(1-δ)*χ[e_i]*pol_σ_U[n_a+(o_i-1)*(n_e-1)*n_a+(e_i-3)*n_a+a1_i,o1_i,t+1]*(1-P(θ[ind1_e[o1_i],t+1])))
+                                push!(k,(1-δ)*χ[e_i]*pol_σ_U[ind1_u[o1_i]-nstates_E,o1_i,t+1]*(1-P(θ[ind1_e[o1_i],t+1])))
                             end
                         end
+
+                        if o_i==2
+
+                            ind1_u=ind
+                            ind1_e=[beq_i-1,2-1,1-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+
+                            push!(i,ind)
+                            push!(j,ind1_e)
+                            push!(k,(1-δ)*(1-χ[e_i])*(1-sum(pol_σ_U[ind1_u-nstates_E,:,t+1]))*P(θ[ind1_e,t+1]))
+
+                            push!(i,ind)
+                            push!(j,ind1_u)
+                            push!(k,(1-δ)*(1-χ[e_i])*(1-sum(pol_σ_U[ind1_u-nstates_E,:,t+1]))*(1-P(θ[ind1_e,t+1])))
+
+                            if e_i==2
+
+                                ind1_u=n_beq*n_o*n_e*n_a+(beq_i-1)*n_a+a1_i
+                                ind1_e=[beq_i-1,2-1,1-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+
+                                push!(i,ind)
+                                push!(j,ind1_e)
+                                push!(k,(1-δ)*χ[e_i]*(1-sum(pol_σ_U[ind1_u-nstates_E,:,t+1]))*P(θ[ind1_e,t+1]))
+
+                                push!(i,ind)
+                                push!(j,ind1_u)
+                                push!(k,(1-δ)*χ[e_i]*(1-sum(pol_σ_U[ind1_u-nstates_E,:,t+1]))*(1-P(θ[ind1_e,t+1])))
+
+                            else
+                                ind1_u=n_beq*n_o*n_e*n_a+n_beq*n_a+[beq_i-1,o_i-1,(e_i-2)-1,a1_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+                                ind1_e=[beq_i-1,2-1,1-1,a1_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+
+                                push!(i,ind)
+                                push!(j,ind1_e)
+                                push!(k,(1-δ)*χ[e_i]*(1-sum(pol_σ_U[ind1_u-nstates_E,:,t+1]))*P(θ[ind1_e,t+1]))
+
+                                push!(i,ind)
+                                push!(j,ind1_u)
+                                push!(k,(1-δ)*χ[e_i]*(1-sum(pol_σ_U[ind1_u-nstates_E,:,t+1]))*(1-P(θ[ind1_e,t+1])))
+                            end
+                        end
+
                     end
 
-                    ind1_ud=n_o*n_e*n_a+a1_i
+                    for beq1_i in 1:n_beq
+                        ind1_ud[beq1_i]=n_beq*n_o*n_e*n_a+(beq1_i-1)*n_a+a1_i
 
-                    push!(i,ind)
-                    push!(j,ind1_ud)
-                    push!(k,δ)
+                        push!(i,ind)
+                        push!(j,ind1_ud[beq1_i])
+                        push!(k,δ/n_beq)
+                    end
 
                 end
             end
@@ -655,13 +775,21 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
             # Compute unemployed and employed of each type
             for o_i in 1:n_o
                 for e_i in 1:n_e
-                    E[t+1][o_i,e_i]=sum(Φ[(o_i-1)*n_e*n_a+(e_i-1)*n_a+1:(o_i-1)*n_e*n_a+e_i*n_a,t+1])
+                    aux=0
+                    for beq_i in 1:n_beq
+                        aux+=sum(Φ[(beq_i-1)*n_o*n_e*n_a+(o_i-1)*n_e*n_a+(e_i-1)*n_a+1:(beq_i-1)*n_o*n_e*n_a+(o_i-1)*n_e*n_a+e_i*n_a])
+                    end
+                    E[t+1][o_i,e_i]=aux
+                    aux2=0
                     if e_i==1
                         if o_i==1
-                            U[t+1][o_i,e_i]=sum(Φ[n_o*n_e*n_a+1:n_o*n_e*n_a+n_a,t+1])
+                            U[t+1][o_i,e_i]=sum(Φ[n_beq*n_o*n_e*n_a+1:n_beq*n_o*n_e*n_a+n_beq*n_a])
                         end
                     else
-                        U[t+1][o_i,e_i]=sum(Φ[n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+1:n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a,t+1])
+                        for beq_i in 1:n_beq
+                            aux2+=sum(Φ[n_beq*n_o*n_e*n_a+n_beq*n_a+(beq_i-1)*n_o*(n_e-1)*n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+1:n_beq*n_o*n_e*n_a+n_beq*n_a+(beq_i-1)*n_o*(n_e-1)*n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a])
+                        end
+                        U[t+1][o_i,e_i]=aux2
                     end
                 end
             end
