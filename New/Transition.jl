@@ -19,7 +19,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     @eval @everywhere n_a0=$n_a0
 
     shockdur=size(zt,2)
-    ϵ=2e-4
+    ϵ=0.001
     wupdate=0.002
 
     if permanent==1
@@ -166,7 +166,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere P(θ)=min(m*θ^(1-ξ),1)
     @everywhere q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
-    @everywhere bequest(λ_1,λ_2,beq)=λ_1*((beq+λ_2)^(1-σ)-1)
+    @everywhere bequest(λ_1,λ_2,beq)=if beq>0.0 λ_1*(1+(beq/λ_2))^(1-σ) else λ_1 end
 
     error=1000
 
@@ -254,7 +254,6 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
                 p_eo=p0[o_i,e_i]
 
-                a_guess=[grid_a0[a_i]+1e-2]
 
                 if e_i==1
                     interp_V_U=LinearInterpolation(grid_a_aux,V_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
@@ -265,13 +264,17 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
                     Veval_0(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
                     β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-                    if Veval_0(a_min)<Veval_0(a_min+1e-12)
+                    a_max_aux=min((1+r)*grid_a[a_i]+φ*p_eo-1e-6,a_max)
+                    if Veval_0(a_min)<Veval_0(a_min+1e-6)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_0(a_min)
+                    elseif Veval_0(a_max_aux)<Veval_0(a_max_aux-1e-6)
+                        pol_a_Eaux[ind,t]=a_max_aux
+                        V_Eaux[ind,t]=-Veval_0(a_max_aux)
                     else
-                        opt=optimize(Veval_0,a_guess,BFGS())
-                        pol_a_Eaux[ind,t]=opt.minimizer[1]
-                        V_Eaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_0,a_min,a_max_aux)
+                        pol_a_Eaux[ind,t]=opt
+                        V_Eaux[ind,t]=-Veval_0(opt)
                     end
                 elseif e_i<n_e
                     interp_V_Ud=LinearInterpolation(grid_a_aux,V_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
@@ -285,13 +288,17 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
                     Veval_1(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
                     β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-                    if Veval_1(a_min)<Veval_1(a_min+1e-12)
+                    a_max_aux=min((1+r)*grid_a[a_i]+φ*p_eo-1e-6,a_max)
+                    if Veval_1(a_min)<Veval_1(a_min+1e-6)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_1(a_min)
+                    elseif Veval_1(a_max_aux)<Veval_1(a_max_aux-1e-6)
+                        pol_a_Eaux[ind,t]=a_max_aux
+                        V_Eaux[ind,t]=-Veval_1(a_max_aux)
                     else
-                        opt=optimize(Veval_1,a_guess,BFGS())
-                        pol_a_Eaux[ind,t]=opt.minimizer[1]
-                        V_Eaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_1,a_min,a_max_aux)
+                        pol_a_Eaux[ind,t]=opt
+                        V_Eaux[ind,t]=-Veval_1(opt)
                     end
                 elseif e_i==n_e
                     interp_V_Ud=LinearInterpolation(grid_a_aux,V_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
@@ -302,13 +309,17 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
                     Veval_2(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*interp_W_E(a1[1]))+
                     β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-                    if Veval_2(a_min)<Veval_2(a_min+1e-12)
+                    a_max_aux=min((1+r)*grid_a[a_i]+φ*p_eo-1e-6,a_max)
+                    if Veval_2(a_min)<Veval_2(a_min+1e-6)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_2(a_min)
+                    elseif Veval_2(a_max_aux)<Veval_2(a_max_aux-1e-6)
+                        pol_a_Eaux[ind,t]=a_max_aux
+                        V_Eaux[ind,t]=-Veval_2(a_max_aux)
                     else
-                        opt=optimize(Veval_2,a_guess,BFGS())
-                        pol_a_Eaux[ind,t]=opt.minimizer[1]
-                        V_Eaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_2,a_min,a_max_aux)
+                        pol_a_Eaux[ind,t]=opt
+                        V_Eaux[ind,t]=-Veval_2(opt)
                     end
                 end
             end
@@ -328,15 +339,17 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
                     Veval_0(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*interp_W_U(a1[1])+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
-                    a_guess=[grid_a0[a_i]+1e-2]
-
-                    if Veval_0(a_min)<Veval_0(a_min+1e-12)
+                    a_max_aux=min((1+r)*grid_a[a_i]+ub-1e-6,a_max)
+                    if Veval_0(a_min)<Veval_0(a_min+1e-6)
                         pol_a_Uaux[ind,t]=a_min
                         V_Uaux[ind,t]=-Veval_0(a_min)
+                    elseif Veval_0(a_max_aux)<Veval_0(a_max_aux-1e-6)
+                        pol_a_Uaux[ind,t]=a_max_aux
+                        V_Uaux[ind,t]=-Veval_0(a_max_aux)
                     else
-                        opt=optimize(Veval_0,a_guess,BFGS())
-                        pol_a_Uaux[ind,t]=opt.minimizer[1]
-                        V_Uaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_0,a_min,a_max_aux)
+                        pol_a_Uaux[ind,t]=opt
+                        V_Uaux[ind,t]=-Veval_0(opt)
                     end
                 else
                     interp_W_Ud=LinearInterpolation(grid_a_aux,W_U_old[(beq_i-1)*n_a_aux+1:beq_i*n_a_aux];extrapolation_bc=Line())
@@ -352,15 +365,17 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                     Veval_1(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*((1-χ[e_i])*interp_W_U(a1[1])+χ[e_i]*interp_W_Ul(a1[1]))+
                     β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
-                    a_guess=[grid_a0[a_i]+1e-2]
-
-                    if Veval_1(a_min)<Veval_1(a_min+1e-12)
+                    a_max_aux=min((1+r)*grid_a[a_i]+ub-1e-6,a_max)
+                    if Veval_1(a_min)<Veval_1(a_min+1e-6)
                         pol_a_Uaux[ind,t]=a_min
                         V_Uaux[ind,t]=-Veval_1(a_min)
+                    elseif Veval_1(a_max_aux)<Veval_1(a_max_aux-1e-6)
+                        pol_a_Uaux[ind,t]=a_max_aux
+                        V_Uaux[ind,t]=-Veval_1(a_max_aux)
                     else
-                        opt=optimize(Veval_1,a_guess,BFGS())
-                        pol_a_Uaux[ind,t]=opt.minimizer[1]
-                        V_Uaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_1,a_min,a_max_aux)
+                        pol_a_Uaux[ind,t]=opt
+                        V_Uaux[ind,t]=-Veval_1(opt)
                     end
                 end
             end
@@ -566,7 +581,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
                             push!(i,ind)
                             push!(j,ind1_ud[beq1_i])
-                            push!(k,δ/n_beq)
+                            push!(k,δ*weight_beq[beq1_i])
                         end
 
                     elseif e_i<n_e
@@ -596,7 +611,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
                             push!(i,ind)
                             push!(j,ind1_ud[beq1_i])
-                            push!(k,δ/n_beq)
+                            push!(k,δ*weight_beq[beq1_i])
                         end
 
 
@@ -617,7 +632,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
                             push!(i,ind)
                             push!(j,ind1_ud[beq1_i])
-                            push!(k,δ/n_beq)
+                            push!(k,δ*weight_beq[beq1_i])
                         end
                     end
 
@@ -753,7 +768,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
                         push!(i,ind)
                         push!(j,ind1_ud[beq1_i])
-                        push!(k,δ/n_beq)
+                        push!(k,δ*weight_beq[beq1_i])
                     end
 
                 end
@@ -799,7 +814,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
         errors=zeros(T)
         for t in 1:T
-            errors[t]=maximum(abs.(E[t]-Eold[t]))
+            errors[t]=maximum(abs.(E[t]-Eold[t])./Ess)
         end
         if maximum(errors)>error || iter>300
             println("Solution was diverging")

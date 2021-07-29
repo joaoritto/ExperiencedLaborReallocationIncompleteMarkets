@@ -2,62 +2,93 @@
 
 function EarningsLoss(grids,pol_functions,Tr,p)
 
-    (grid_i,grid_s,grid_a)=grids
-    n_o,n_e,n_a=length(grid_i),length(grid_s),length(grid_a)
-    (pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,θ)=pol_functions
+    (grid_beq,grid_o,grid_e,grid_a)=grids
+    n_beq,n_o,n_e,n_a=length(grid_beq),length(grid_o),length(grid_e),length(grid_a)
+    (pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,θ)=pol_functions
 
-    nstates=n_o*n_e*n_a+n_a+n_o*(n_e-1)*n_a
-    nsvars=4
-    ngrids_vars=[2,n_o,n_e,n_a]
+    @eval @everywhere pol_a_Ei=$pol_a_Ei
+    @eval @everywhere Tr=$Tr
+    @eval @everywhere p=$p
 
-    nstates_E=n_o*n_e*n_a
-    statestogrid_E=ones(Int64,nstates_E,nsvars)
-    nstates_U=n_a+n_o*(n_e-1)*n_a
-    statestogrid_U=ones(Int64,nstates_U,nsvars)
-    for v in 1:nsvars
-        if v==1
-            statestogrid_E[:,v]=1*ones(nstates_E,1)
+    @eval @everywhere grid_beq=$grid_beq
+    @eval @everywhere grid_o=$grid_o
+    @eval @everywhere grid_e=$grid_e
+    @eval @everywhere grid_a=$grid_a
+
+
+    @eval @everywhere n_beq=$n_beq
+    @eval @everywhere n_o=$n_o
+    @eval @everywhere n_e=$n_e
+    @eval @everywhere n_a=$n_a
+
+    nstates=n_beq*(n_o*n_e*n_a+n_a+n_o*(n_e-1)*n_a)
+    nsvars=5
+    ngrids_vars=[2,n_beq,n_o,n_e,n_a]
+
+    nstates_E=n_a*n_e*n_o*n_beq
+    ngrids_vars_E=[n_beq,n_o,n_e,n_a]
+    nstates_U=n_beq*(n_a+n_o*(n_e-1)*n_a)
+    ngrids_vars_U=[n_beq,n_o,n_e-1,n_a]
+
+    nsvars_E=4
+    nsvars_U=4
+
+    statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
+    for v in 1:nsvars_E
+        statestogrid_E[:,v]=kron(ones(prod(ngrids_vars_E[1:v-1]),1),kron(1:ngrids_vars_E[v],ones(prod(ngrids_vars_E[v+1:nsvars_E]),1)))
+    end
+
+    statestogrid_U=zeros(Int64,nstates_U,nsvars_U)
+    for beq_i in 1:n_beq
+        statestogrid_U[(beq_i-1)*n_a+1:beq_i*n_a,:]=hcat(beq_i*ones(n_a),ones(n_a,2),1:n_a)
+    end
+    for v in 1:nsvars_E
+        if v==3
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(2:ngrids_vars_U[v]+1,ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
         else
-            statestogrid_E[:,v]=kron(ones(prod(ngrids_vars[2:v-1]),1),kron(1:ngrids_vars[v],ones(prod(ngrids_vars[v+1:nsvars]),1)))
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(1:ngrids_vars_U[v],ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
         end
     end
-    statestogrid_U[:,1]=2*ones(nstates_U)
-    statestogrid_U[1:n_a,2:nsvars]=hcat(ones(n_a,2),1:n_a)
-    for o_i in 1:n_o
-        statestogrid_U[n_a+(o_i-1)*(n_e-1)*n_a+1:n_a+o_i*(n_e-1)*n_a,2:nsvars]=hcat(o_i*ones((n_e-1)*n_a,1),kron(2:n_e,ones(n_a)),kron(ones(n_e-1),1:n_a))
-    end
 
-    statestogrid=[statestogrid_E;statestogrid_U]
+    statestogrid=[hcat(ones(Int64,size(statestogrid_E,1),1),statestogrid_E);hcat(2*ones(Int64,size(statestogrid_U,1),1),statestogrid_U)]
+
+    @eval @everywhere statestogrid_E=$statestogrid_E
+    @eval @everywhere statestogrid_U=$statestogrid_U
+    @eval @everywhere statestogrid=$statestogrid
 
     T=30
-    earningsdist=zeros(nstates)
-    for ind in 1:nstates
-        a_i=statestogrid[ind,4]
-        e_i=statestogrid[ind,3]
-        o_i=statestogrid[ind,2]
+    earningsdist=SharedArray{Float64}(nstates)
+    @sync @distributed for ind in 1:nstates
+        a_i=statestogrid[ind,5]
+        e_i=statestogrid[ind,4]
+        o_i=statestogrid[ind,3]
+        beq_i=statestogrid[ind,2]
         s_i=statestogrid[ind,1]
 
 
         if s_i==1
-            earningsdist[ind]=p[o_i,e_i]
+            earningsdist[ind]=φ*p[o_i,e_i]
         elseif s_i==2
             earningsdist[ind]=p[o_i,e_i]*b
         end
     end
 
-    earningsloss0=zeros(nstates_E,T)
-    earningsloss1=zeros(nstates_E,T)
-    for ind in eachindex(V_E)
+    earningsloss0=SharedArray{Float64}(nstates_E,T)
+    earningsloss1=SharedArray{Float64}(nstates_E,T)
+    @sync @distributed for ind in 1:1500:nstates_E
         a_i=statestogrid_E[ind,4]
         e_i=statestogrid_E[ind,3]
         o_i=statestogrid_E[ind,2]
+        beq_i=statestogrid_E[ind,1]
 
-        a1_i=pol_a_E[ind]
+        println(ind)
+
+        a1_i=pol_a_Ei[ind]
         indE=ind
         if e_i==1
-            indU=n_o*n_e*n_a+a1_i
+            indU=n_beq*n_o*n_e*n_a+(beq_i-1)*n_a+a1_i
         else
-            indU=n_o*n_e*n_a+n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+a1_i
+            indU=n_beq*n_o*n_e*n_a+n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,a1_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
         end
 
         distE=zeros(nstates)

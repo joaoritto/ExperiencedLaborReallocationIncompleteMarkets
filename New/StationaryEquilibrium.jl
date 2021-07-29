@@ -88,7 +88,7 @@ function ComputeDistribution(grids,pol_functions)
 
                     push!(i,ind)
                     push!(j,ind1_ud[beq1_i])
-                    push!(k,δ/n_beq)
+                    push!(k,δ*weight_beq[beq1_i])
                 end
 
             elseif e_i<n_e
@@ -118,7 +118,7 @@ function ComputeDistribution(grids,pol_functions)
 
                     push!(i,ind)
                     push!(j,ind1_ud[beq1_i])
-                    push!(k,δ/n_beq)
+                    push!(k,δ*weight_beq[beq1_i])
                 end
 
             elseif e_i==n_e
@@ -138,7 +138,7 @@ function ComputeDistribution(grids,pol_functions)
 
                     push!(i,ind)
                     push!(j,ind1_ud[beq1_i])
-                    push!(k,δ/n_beq)
+                    push!(k,δ*weight_beq[beq1_i])
                 end
             end
 
@@ -272,7 +272,7 @@ function ComputeDistribution(grids,pol_functions)
 
                 push!(i,ind)
                 push!(j,ind1_ud[beq1_i])
-                push!(k,δ/n_beq)
+                push!(k,δ*weight_beq[beq1_i])
             end
 
         end
@@ -286,7 +286,7 @@ function ComputeDistribution(grids,pol_functions)
 
     Φ=zeros(nstates)
     ind0=n_beq*n_o*n_e*n_a+1:n_a:n_beq*n_o*n_e*n_a+n_beq*n_a
-    Φ[ind0].=1/n_beq
+    Φ[ind0]=weight_beq
 
     for j in 1:50000
         Φ=T'*Φ
@@ -363,14 +363,14 @@ function GeneralEquilibrium(z)
 
     pol_val_functions=false
 
-    El=[0.029737932381096246 - 5e-6;
-        0.05017787352590754 - 5e-6;
-        0.07629272108164575 - 5e-6;
-        0.3137706336240057 - 5e-6]
-    Eu=[0.029737932381096246 + 5e-6;
-         0.05017787352590754 + 5e-6;
-        0.07629272108164575 + 5e-6;
-        0.3137706336240057 + 5e-6]
+    El=[0.000305643 - 5e-6;
+        0.000452467 - 5e-6;
+        0.000762498 - 5e-6;
+        0.00317742 - 5e-6]
+    Eu=[0.000305643 + 5e-6;
+        0.000452467 + 5e-6;
+        0.000762498 + 5e-6;
+        0.00317742 + 5e-6]
 
     Es=zeros(n_e)
     U=zeros(n_e)
@@ -386,7 +386,7 @@ function GeneralEquilibrium(z)
 
     while ready==false
         Eiter+=1
-        Ed[:,k]=ones(n_o,1)*(El[k]*0.5+Eu[k]*0.5)
+        Ed[:,k]=[1;O-1]*(El[k]*0.5+Eu[k]*0.5)
 
         if k<n_e
             k=k+1
@@ -411,12 +411,12 @@ function GeneralEquilibrium(z)
         (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 
         grid_a=LinRange(a_min,a_max,nGrids_a[end])
-        grids=(grid_o,grid_e,grid_a)
+        grids=(grid_beq,grid_o,grid_e,grid_a)
         if n_anew!=nGrids_a[end]
             grid_a=LinRange(a_min,a_max,n_anew)
             pol_val_functions=transformVPolFunctions(pol_val_functions,grids,grid_a)
             (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
-            grids=(grid_o,grid_e,grid_a)
+            grids=(grid_beq,grid_o,grid_e,grid_a)
         end
 
         pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)

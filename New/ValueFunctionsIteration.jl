@@ -20,7 +20,6 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
     @eval @everywhere n_e=$n_e
     @eval @everywhere n_a=$n_a
 
-
     nstates_E=n_a*n_e*n_o*n_beq
     ngrids_vars_E=[n_beq,n_o,n_e,n_a]
     nstates_U=n_beq*(n_a+n_o*(n_e-1)*n_a)
@@ -45,7 +44,6 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
             statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(1:ngrids_vars_U[v],ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
         end
     end
-
 
     statestogrid=[hcat(ones(Int64,size(statestogrid_E,1),1),statestogrid_E);hcat(2*ones(Int64,size(statestogrid_U,1),1),statestogrid_U)]
 
@@ -84,11 +82,13 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
     @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere P(θ)=min(m*θ^(1-ξ),1)
     @everywhere q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
-    @everywhere bequest(λ_1,λ_2,beq)=λ_1*((beq+λ_2)^(1-σ)-1)
+    #@everywhere bequest(λ_1,λ_2,beq)=if beq>0.0 λ_1*(1+(beq/λ_2))^(1-σ) else λ_1 end
+    @everywhere bequest(λ_1,λ_2,beq)=λ_1*(1+((beq-a_min)/λ_2))^(1-σ)
+
     error=1000
 
     iter=0
-    while error>ϵ && iter<3000
+    while error>ϵ && iter<2500
         iter+=1
 
         V_E=SharedArray{Float64}(nstates_E)
@@ -115,8 +115,6 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
 
             p_eo=p[o_i,e_i]
 
-            a_guess=[grid_a[a_i]+1e-2]
-
             if e_i==1
                 interp_V_U=LinearInterpolation(grid_a,V_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
                 ind1_en=[beq_i-1,o_i-1,1-1,1]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
@@ -126,13 +124,17 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
 
                 Veval_0(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
                 β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-                if Veval_0(a_min)<Veval_0(a_min+1e-12)
+                a_max_aux=min((1+r)*grid_a[a_i]+φ*p_eo-1e-6,a_max)
+                if Veval_0(a_min)<Veval_0(a_min+1e-6)
                     pol_a_E[ind]=a_min
                     V_E[ind]=-Veval_0(a_min)
+                elseif Veval_0(a_max_aux)<Veval_0(a_max_aux-1e-6)
+                    pol_a_E[ind]=a_max_aux
+                    V_E[ind]=-Veval_0(a_max_aux)
                 else
-                    opt=optimize(Veval_0,a_guess,BFGS())
-                    pol_a_E[ind]=opt.minimizer[1]
-                    V_E[ind]=-opt.minimum
+                    opt=bisection_derivative(Veval_0,a_min,a_max_aux)
+                    pol_a_E[ind]=opt
+                    V_E[ind]=-Veval_0(opt)
                 end
             elseif e_i<n_e
                 interp_V_Ud=LinearInterpolation(grid_a,V_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
@@ -145,13 +147,17 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
 
                 Veval_1(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
                 β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-                if Veval_1(a_min)<Veval_1(a_min+1e-12)
+                a_max_aux=min((1+r)*grid_a[a_i]+φ*p_eo-1e-6,a_max)
+                if Veval_1(a_min)<Veval_1(a_min+1e-6)
                     pol_a_E[ind]=a_min
                     V_E[ind]=-Veval_1(a_min)
+                elseif Veval_1(a_max_aux)<Veval_1(a_max_aux-1e-6)
+                    pol_a_E[ind]=a_max_aux
+                    V_E[ind]=-Veval_1(a_max_aux)
                 else
-                    opt=optimize(Veval_1,a_guess,BFGS())
-                    pol_a_E[ind]=opt.minimizer[1]
-                    V_E[ind]=-opt.minimum
+                    opt=bisection_derivative(Veval_1,a_min,a_max_aux)
+                    pol_a_E[ind]=opt
+                    V_E[ind]=-Veval_1(opt)
                 end
             elseif e_i==n_e
                 interp_V_Ud=LinearInterpolation(grid_a,V_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
@@ -161,13 +167,17 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
                 interp_W_E=LinearInterpolation(grid_a,W_E_old[ind1_e:(ind1_e-1)+n_a];extrapolation_bc=Line())
 
                 Veval_2(a1)= -(u((1+r)*grid_a[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*interp_W_E(a1[1]))+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-                if Veval_2(a_min)<Veval_2(a_min+1e-12)
+                a_max_aux=min((1+r)*grid_a[a_i]+φ*p_eo-1e-6,a_max)
+                if Veval_2(a_min)<Veval_2(a_min+1e-6)
                     pol_a_E[ind]=a_min
                     V_E[ind]=-Veval_2(a_min)
+                elseif Veval_2(a_max_aux)<Veval_2(a_max_aux-1e-6)
+                    pol_a_E[ind]=a_max_aux
+                    V_E[ind]=-Veval_2(a_max_aux)
                 else
-                    opt=optimize(Veval_2,a_guess,BFGS())
-                    pol_a_E[ind]=opt.minimizer[1]
-                    V_E[ind]=-opt.minimum
+                    opt=bisection_derivative(Veval_2,a_min,a_max_aux)
+                    pol_a_E[ind]=opt
+                    V_E[ind]=-Veval_2(opt)
                 end
             end
 
@@ -187,15 +197,17 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
 
                 Veval_0(a1)=-(u((1+r)*grid_a[a_i]+ub-a1[1])+β*(1-δ)*interp_W_U(a1[1])+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
-                a_guess=[grid_a[a_i]+1e-2]
-
-                if Veval_0(a_min)<Veval_0(a_min+1e-12)
+                a_max_aux=min((1+r)*grid_a[a_i]+ub-1e-6,a_max)
+                if Veval_0(a_min)<Veval_0(a_min+1e-6)
                     pol_a_U[ind]=a_min
                     V_U[ind]=-Veval_0(a_min)
+                elseif Veval_0(a_max_aux)<Veval_0(a_max_aux-1e-6)
+                    pol_a_U[ind]=a_max_aux
+                    V_U[ind]=-Veval_0(a_max_aux)
                 else
-                    opt=optimize(Veval_0,a_guess,BFGS())
-                    pol_a_U[ind]=opt.minimizer[1]
-                    V_U[ind]=-opt.minimum
+                    opt=bisection_derivative(Veval_0,a_min,a_max_aux)
+                    pol_a_U[ind]=opt
+                    V_U[ind]=-Veval_0(opt)
                 end
             else
                 interp_W_Ud=LinearInterpolation(grid_a,W_U_old[(beq_i-1)*n_a+1:beq_i*n_a];extrapolation_bc=Line())
@@ -210,16 +222,17 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
 
 
                 Veval_1(a1)=-(u((1+r)*grid_a[a_i]+ub-a1[1])+β*(1-δ)*((1-χ[e_i])*interp_W_U(a1[1])+χ[e_i]*interp_W_Ul(a1[1]))+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-
-                a_guess=[grid_a[a_i]+1e-2]
-
-                if Veval_1(a_min)<Veval_1(a_min+1e-12)
+                a_max_aux=min((1+r)*grid_a[a_i]+ub-1e-6,a_max)
+                if Veval_1(a_min)<Veval_1(a_min+1e-6)
                     pol_a_U[ind]=a_min
                     V_U[ind]=-Veval_1(a_min)
+                elseif Veval_1(a_max_aux)<Veval_1(a_max_aux-1e-6)
+                    pol_a_U[ind]=a_max_aux
+                    V_U[ind]=-Veval_1(a_max_aux)
                 else
-                    opt=optimize(Veval_1,a_guess,BFGS())
-                    pol_a_U[ind]=opt.minimizer[1]
-                    V_U[ind]=-opt.minimum
+                    opt=bisection_derivative(Veval_1,a_min,a_max_aux)
+                    pol_a_U[ind]=opt
+                    V_U[ind]=-Veval_1(opt)
                 end
             end
         end

@@ -12,6 +12,7 @@ include(path*"StationaryEquilibrium.jl")
 include(path*"Transition.jl")
 include(path*"EarningsLoss.jl")
 include(path*"SeqSpaceJacobian.jl")
+include(path*"bisection_derivative.jl")
 
 @everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim,StatsBase,Distributions,JLD
 
@@ -27,41 +28,46 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 # Parameters
 @everywhere β=0.9935 # Discount factor
 @everywhere σ=2.0  # Inverse IES
-@everywhere ρ=0.032 # Exogenous separation
+@everywhere ρ=0.042 # Exogenous separation
 @everywhere δ=1/(45*6) # Death
 @everywhere α=[1/12;1/18;1/18;0] # Probability of being promoted
-@everywhere χ=[0;0.2;0.2;0.2] # Probability of losing skill
-@everywhere b=0.45*0.94 # Replacement rate: Unemployment benefits; b*p > -̲a*r or c<0 at lowest wealth
-@everywhere σ_ϵ=0.1 # s.d. of taste shocks
+@everywhere χ1=0.4
+@everywhere χ=[0;χ1;3/2*χ1;3/2*χ1] # Probability of losing skill
+@everywhere φ=0.955 # Portion of good paid to worker
+@everywhere b=0.45*φ # Replacement rate: Unemployment benefits; b*p > -̲a*r or c<0 at lowest wealth
+@everywhere σ_ϵ=0.06# s.d. of taste shocks
 @everywhere ξ=0.5 # Unemployed share in matching technology
-@everywhere m=0.48 # Productivity of matching technology
-@everywhere κ=0.28 # Vacancy cost
-@everywhere γ=[0.055563;0.098816;0.159657;0.685964] # Productivity share workers
+@everywhere m=0.5 # Productivity of matching technology
+@everywhere κ=0.136 # Vacancy cost
+@everywhere γ=[0.09668;0.19850;0.25172;0.45310] # Productivity share workers
 @everywhere ω=-1e-7 # Elasticity of substitution between worker types (CES prod function)
-@everywhere ν=10.0 # Elasticity of substitution between intermediate goods
-@everywhere φ=0.94 # Portion of good paid to worker
-@everywhere λ_2=1.0
+@everywhere ν=3.0 # Elasticity of substitution between intermediate goods
+@everywhere λ_2=4.23
 
 @everywhere O=200
 @everywhere ϕ=[1/(1+(O-1)^(1/ν));((O-1)^(1/ν))/(1+(O-1)^(1/ν))] #  weight of each occupation
 
-@everywhere a_min=0.0
-@everywhere a_max=5.0
+@everywhere p_low=0.379
+
+@everywhere a_min=-9*p_low*φ
+@everywhere a_max=20.0
 
 # Prices
 if PE==1
-    @everywhere p=[0.342314 0.3608513 0.383489 0.400621; 0.342314 0.3608513 0.383489 0.400621]
+    @everywhere p=[1 1.089 1.2 1.279; 1 1.089 1.2 1.279]*p_low
 end
-@everywhere r=0.015/6
+@everywhere r=0.04/6
 
 @everywhere z=2.0*ones(2) #n_o=2
 
 # Grids
-@everywhere n_beq=1
+@everywhere n_beq=3
 @everywhere n_o=2 # Should be equal to 2, because code is written for the case of 2 occupations, occupation 2 being large
 @everywhere n_e=4
 
-@everywhere grid_beq=[0]
+@everywhere grid_beq=[0.0;-190.0;-310.0]
+@everywhere weight_beq=[0.28;0.56;0.16]
+
 @everywhere grid_o=1:n_o
 @everywhere grid_e=1:n_e
 
@@ -142,11 +148,11 @@ prices(ϕ,Y,z,E,e_i)=ϕ*γ[e_i]*Y^(1/ν)*z^(1-(1/ν))*E[e_i]^(ω-1)*sum(γ.*(E.^
 p=zeros(n_o,n_e)
 for o_i in 1:n_o
     for e_i in 1:n_e
-        p[o_i,e_i]=prices(1/n_o,Y,z[o_i],E[o_i,:],e_i)
+        p[o_i,e_i]=prices(ϕ[o_i],Y,z[o_i],E[o_i,:],e_i)
     end
 end
 
-#earningsloss,wageloss=EarningsLoss(grids,pol_functions,Tr,p)
+earningsloss,wageloss=EarningsLoss(grids,pol_functions,Tr,p)
 #=
 Jacobian=SeqSpaceJacobian(grids,StatEq,p,Tr)
 
