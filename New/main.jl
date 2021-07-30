@@ -245,7 +245,7 @@ if comp_transition==1
 
     shockdur=40
     zt=z*ones(1,shockdur+1)
-    zt[:,1]=[2.0;2.0]
+    zt[:,1]=[1.7;2.0]
     for t in 2:shockdur
         zt[:,t]=0.9*zt[:,t-1]+0.1*z
     end
