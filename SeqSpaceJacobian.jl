@@ -101,6 +101,7 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
     @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere P(θ)=min(m*θ^(1-ξ),1)
     @everywhere q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
+    @everywhere bequest(λ_1,λ_2,beq)=if beq>0.0 λ_1*(1+(beq/λ_2))^(1-σ) else λ_1 end
 
 
     Jacobian=[[zeros(T,T) for i in 1:length(p)] for o in 1:length(E)]
@@ -161,7 +162,6 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
 
                 p_eo=p[o_i,e_i]
 
-                a_guess=[grid_a0[a_i]+1e-2]
 
                 if e_i==1
                     interp_V_U=LinearInterpolation(grid_a_aux,V_U_old[1:n_a_aux];extrapolation_bc=Line())
@@ -170,14 +170,19 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
                     ind1_ep=[o_i-1,2-1,1]'*[n_e*n_a_aux,n_a_aux,1]
                     interp_W_Ep=LinearInterpolation(grid_a_aux,W_E_old[ind1_ep:(ind1_ep-1)+n_a_aux];extrapolation_bc=Line())
 
-                    Veval_0(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
-                    if Veval_0(a_min)<Veval_0(a_min+1e-12)
+                    Veval_0(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
+                    β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
+                    a_max_aux=min((1+r)*grid_a0[a_i]+φ*p_eo-1e-6,a_max)
+                    if Veval_0(a_min)<Veval_0(a_min+1e-6)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_0(a_min)
+                    elseif Veval_0(a_max_aux)<Veval_0(a_max_aux-1e-6)
+                        pol_a_Eaux[ind,t]=a_max_aux
+                        V_Eaux[ind,t]=-Veval_0(a_max_aux)
                     else
-                        opt=optimize(Veval_0,a_guess,BFGS())
-                        pol_a_Eaux[ind,t]=opt.minimizer[1]
-                        V_Eaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_0,a_min,a_max_aux)
+                        pol_a_Eaux[ind,t]=opt
+                        V_Eaux[ind,t]=-Veval_0(opt)
                     end
                 elseif e_i<n_e
                     interp_V_Ud=LinearInterpolation(grid_a_aux,V_U_old[1:n_a_aux];extrapolation_bc=Line())
@@ -187,15 +192,19 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
                     ind1_ep=[o_i-1,(e_i+1)-1,1]'*[n_e*n_a_aux,n_a_aux,1]
                     interp_W_Ep=LinearInterpolation(grid_a_aux,W_E_old[ind1_ep:(ind1_ep-1)+n_a_aux];extrapolation_bc=Line())
 
-
-                    Veval_1(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*((ρ-δ)*interp_V_U(a1[1])+δ*interp_V_Ud(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1]))))
-                    if Veval_1(a_min)<Veval_1(a_min+1e-12)
+                    Veval_1(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
+                    β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
+                    a_max_aux=min((1+r)*grid_a0[a_i]+φ*p_eo-1e-6,a_max)
+                    if Veval_1(a_min)<Veval_1(a_min+1e-6)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_1(a_min)
+                    elseif Veval_1(a_max_aux)<Veval_1(a_max_aux-1e-6)
+                        pol_a_Eaux[ind,t]=a_max_aux
+                        V_Eaux[ind,t]=-Veval_1(a_max_aux)
                     else
-                        opt=optimize(Veval_1,a_guess,BFGS())
-                        pol_a_Eaux[ind,t]=opt.minimizer[1]
-                        V_Eaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_1,a_min,a_max_aux)
+                        pol_a_Eaux[ind,t]=opt
+                        V_Eaux[ind,t]=-Veval_1(opt)
                     end
                 elseif e_i==n_e
                     interp_V_Ud=LinearInterpolation(grid_a_aux,V_U_old[1:n_a_aux];extrapolation_bc=Line())
@@ -203,14 +212,19 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
                     ind1_e=[o_i-1,e_i-1,1]'*[n_e*n_a_aux,n_a_aux,1]
                     interp_W_E=LinearInterpolation(grid_a_aux,W_E_old[ind1_e:(ind1_e-1)+n_a_aux];extrapolation_bc=Line())
 
-                    Veval_2(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*((ρ-δ)*interp_V_U(a1[1])+δ*interp_V_Ud(a1[1])+(1-ρ)*interp_W_E(a1[1])))
-                    if Veval_2(a_min)<Veval_2(a_min+1e-12)
+                    Veval_2(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*interp_W_E(a1[1]))+
+                    β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
+                    a_max_aux=min((1+r)*grid_a0[a_i]+φ*p_eo-1e-6,a_max)
+                    if Veval_2(a_min)<Veval_2(a_min+1e-6)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_2(a_min)
+                    elseif Veval_2(a_max_aux)<Veval_2(a_max_aux-1e-6)
+                        pol_a_Eaux[ind,t]=a_max_aux
+                        V_Eaux[ind,t]=-Veval_2(a_max_aux)
                     else
-                        opt=optimize(Veval_2,a_guess,BFGS())
-                        pol_a_Eaux[ind,t]=opt.minimizer[1]
-                        V_Eaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_2,a_min,a_max_aux)
+                        pol_a_Eaux[ind,t]=opt
+                        V_Eaux[ind,t]=-Veval_2(opt)
                     end
                 end
             end
@@ -227,17 +241,19 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
                 if e_i==1
                     interp_W_U=LinearInterpolation(grid_a_aux,W_U_old[1:n_a_aux];extrapolation_bc=Line())
 
-                    Veval_0(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*interp_W_U(a1[1]))
+                    Veval_0(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*interp_W_U(a1[1])+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
-                    a_guess=[grid_a0[a_i]+1e-2]
-
-                    if Veval_0(a_min)<Veval_0(a_min+1e-12)
+                    a_max_aux=min((1+r)*grid_a0[a_i]+ub-1e-6,a_max)
+                    if Veval_0(a_min)<Veval_0(a_min+1e-6)
                         pol_a_Uaux[ind,t]=a_min
                         V_Uaux[ind,t]=-Veval_0(a_min)
+                    elseif Veval_0(a_max_aux)<Veval_0(a_max_aux-1e-6)
+                        pol_a_Uaux[ind,t]=a_max_aux
+                        V_Uaux[ind,t]=-Veval_0(a_max_aux)
                     else
-                        opt=optimize(Veval_0,a_guess,BFGS())
-                        pol_a_Uaux[ind,t]=opt.minimizer[1]
-                        V_Uaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_0,a_min,a_max_aux)
+                        pol_a_Uaux[ind,t]=opt
+                        V_Uaux[ind,t]=-Veval_0(opt)
                     end
                 else
                     interp_W_Ud=LinearInterpolation(grid_a_aux,W_U_old[1:n_a_aux];extrapolation_bc=Line())
@@ -248,17 +264,20 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
                     end
                     interp_W_U=LinearInterpolation(grid_a_aux,W_U_old[n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-2)*n_a_aux+1:n_a_aux+(o_i-1)*(n_e-1)*n_a_aux+(e_i-1)*n_a_aux];extrapolation_bc=Line())
 
-                    Veval_1(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*((1-δ-χ[e_i])*interp_W_U(a1[1])+δ*interp_W_Ud(a1[1])+χ[e_i]*interp_W_Ul(a1[1])))
+                    Veval_1(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*((1-χ[e_i])*interp_W_U(a1[1])+χ[e_i]*interp_W_Ul(a1[1]))+
+                    β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
-                    a_guess=[grid_a0[a_i]+1e-2]
-
-                    if Veval_1(a_min)<Veval_1(a_min+1e-12)
+                    a_max_aux=min((1+r)*grid_a0[a_i]+ub-1e-6,a_max)
+                    if Veval_1(a_min)<Veval_1(a_min+1e-6)
                         pol_a_Uaux[ind,t]=a_min
                         V_Uaux[ind,t]=-Veval_1(a_min)
+                    elseif Veval_1(a_max_aux)<Veval_1(a_max_aux-1e-6)
+                        pol_a_Uaux[ind,t]=a_max_aux
+                        V_Uaux[ind,t]=-Veval_1(a_max_aux)
                     else
-                        opt=optimize(Veval_1,a_guess,BFGS())
-                        pol_a_Uaux[ind,t]=opt.minimizer[1]
-                        V_Uaux[ind,t]=-opt.minimum
+                        opt=bisection_derivative(Veval_1,a_min,a_max_aux)
+                        pol_a_Uaux[ind,t]=opt
+                        V_Uaux[ind,t]=-Veval_1(opt)
                     end
                 end
             end

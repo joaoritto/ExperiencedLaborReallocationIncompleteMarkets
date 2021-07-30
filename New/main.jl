@@ -18,7 +18,7 @@ include(path*"bisection_derivative.jl")
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
-PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
+PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
 small_grid=0
 comp_transition=0
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
@@ -124,25 +124,30 @@ if PE==1
     display(prices_result)
     display(E[:,:])
 
+    grid_a=LinRange(a_min,a_max,nGrids_a[end])
+    grids=(grid_beq,grid_o,grid_e,grid_a)
+
+    V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,p;Guess=pol_val_functions0)
+    pol_val_functions0=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
+
+    grid_a=LinRange(a_min,a_max,n_anew)
+    pol_val_functions=transformVPolFunctions(pol_val_functions0,grids,grid_a)
+    (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+    grids=(grid_beq,grid_o,grid_e,grid_a)
+
+    pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
+
+    StatEq=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E,U)
+
 elseif PE==0
-    pol_val_functions,Φ,Tr,Y,E,U=GeneralEquilibrium(z)
-    (V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+    StatEq,Tr=GeneralEquilibrium(z)
+
+    grid_a=LinRange(a_min,a_max,n_anew)
+    grids=(grid_beq,grid_o,grid_e,grid_a)
 end
 
-grid_a=LinRange(a_min,a_max,nGrids_a[end])
-grids=(grid_beq,grid_o,grid_e,grid_a)
-
-V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,p;Guess=pol_val_functions0)
-pol_val_functions0=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
-
-grid_a=LinRange(a_min,a_max,n_anew)
-pol_val_functions=transformVPolFunctions(pol_val_functions0,grids,grid_a)
-(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
-grids=(grid_beq,grid_o,grid_e,grid_a)
-
-pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
-
-StatEq=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E,U)
+(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ,Y,E,U)=StatEq
+pol_functions=(pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,θ)
 
 prices(ϕ,Y,z,E,e_i)=ϕ*γ[e_i]*Y^(1/ν)*z^(1-(1/ν))*E[e_i]^(ω-1)*sum(γ.*(E.^ω))^((1/ω)*(1-(1/ν))-1)
 
@@ -154,7 +159,7 @@ for o_i in 1:n_o
 end
 
 earningsloss,wageloss=EarningsLoss(grids,pol_functions,Tr,p)
-#=
+
 Jacobian=SeqSpaceJacobian(grids,StatEq,p,Tr)
 
 shockdur=40
@@ -168,7 +173,7 @@ dZ=zeros(n_o,200)
 dZ[:,1:shockdur+1]=zt.-z
 
 dU,dUdZ=ComputingdU(grids,StatEq,Jacobian,dZ)
-
+#=
 # simulate
 shock=rand(Normal(0,1),10000,2)
 logzt=zeros(n_o,200)
@@ -245,7 +250,7 @@ if comp_transition==1
 
     shockdur=40
     zt=z*ones(1,shockdur+1)
-    zt[:,1]=[1.7;2.0]
+    zt[:,1]=[2.0;2.0]
     for t in 2:shockdur
         zt[:,t]=0.9*zt[:,t-1]+0.1*z
     end
@@ -265,7 +270,7 @@ if comp_transition==1
 end
 
 
-#save(path*"results.jld", "StatEq", StatEq, "pol_val_results", pol_val_results,"NewE",NewE,"NewU",NewU)
+save(path*"results.jld", "StatEq", StatEq, "pol_val_results", pol_val_results,"NewE",NewE,"NewU",NewU)
 #StatEq=load(path*"results.jld", "StatEq")
 #pol_val_results=load(path*"results.jld", "pol_val_results")
 #NewE=load(path*"results.jld", "NewE")
@@ -288,25 +293,5 @@ ylabel!("probability of searching in occupation")
 
 plot(p1,p2,p3,layout=(1,3))
 
-
-## Computing wealth inequality
-
-# Gini coefficient
-
-cumulx=zeros(1500)
-cumuly=zeros(1500)
-for a_i in 1:1500
-    cumulx[a_i]=Φ'*kron(ones(n_o*n_e+1+n_o*(n_e-1)),[ones(a_i);zeros(1500-a_i)])
-    cumuly[a_i]=(Φ'*kron(ones(n_o*n_e+1+n_o*(n_e-1)),[grid_a[1:a_i];zeros(1500-a_i)]))/(Φ'*kron(ones(n_o*n_e+1+n_o*(n_e-1)),grid_a))
-end
-
-plot(cumulx,cumuly,legend=false)
-plot!(cumulx,cumulx,legend=false)
-
-Gini=(cumulx[1]-cumuly[1])*cumulx[1]
-for a_i in 2:1500
-    Gini+=(cumulx[a_i]-cumuly[a_i])*(cumulx[a_i]-cumulx[a_i-1])
-end
-Gini=Gini/0.5
 
 =#

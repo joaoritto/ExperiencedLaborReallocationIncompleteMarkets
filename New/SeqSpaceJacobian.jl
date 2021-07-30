@@ -186,7 +186,7 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
 
                     Veval_0(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
                     β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-                    a_max_aux=min((1+r)*grid_a[a_i]+φ*p_eo-1e-6,a_max)
+                    a_max_aux=min((1+r)*grid_a0[a_i]+φ*p_eo-1e-6,a_max)
                     if Veval_0(a_min)<Veval_0(a_min+1e-6)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_0(a_min)
@@ -210,7 +210,7 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
 
                     Veval_1(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*((1-α[e_i])*interp_W_En(a1[1])+α[e_i]*interp_W_Ep(a1[1])))+
                     β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-                    a_max_aux=min((1+r)*grid_a[a_i]+φ*p_eo-1e-6,a_max)
+                    a_max_aux=min((1+r)*grid_a0[a_i]+φ*p_eo-1e-6,a_max)
                     if Veval_1(a_min)<Veval_1(a_min+1e-6)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_1(a_min)
@@ -231,7 +231,7 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
 
                     Veval_2(a1)= -(u((1+r)*grid_a0[a_i]+φ*p_eo-a1[1])+β*(1-δ)*(ρ*interp_V_U(a1[1])+(1-ρ)*interp_W_E(a1[1]))+
                     β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
-                    a_max_aux=min((1+r)*grid_a[a_i]+φ*p_eo-1e-6,a_max)
+                    a_max_aux=min((1+r)*grid_a0[a_i]+φ*p_eo-1e-6,a_max)
                     if Veval_2(a_min)<Veval_2(a_min+1e-6)
                         pol_a_Eaux[ind,t]=a_min
                         V_Eaux[ind,t]=-Veval_2(a_min)
@@ -261,7 +261,7 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
 
                     Veval_0(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*interp_W_U(a1[1])+β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
-                    a_max_aux=min((1+r)*grid_a[a_i]+ub-1e-6,a_max)
+                    a_max_aux=min((1+r)*grid_a0[a_i]+ub-1e-6,a_max)
                     if Veval_0(a_min)<Veval_0(a_min+1e-6)
                         pol_a_Uaux[ind,t]=a_min
                         V_Uaux[ind,t]=-Veval_0(a_min)
@@ -287,7 +287,7 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
                     Veval_1(a1)=-(u((1+r)*grid_a0[a_i]+ub-a1[1])+β*(1-δ)*((1-χ[e_i])*interp_W_U(a1[1])+χ[e_i]*interp_W_Ul(a1[1]))+
                     β*δ*bequest(grid_beq[beq_i],λ_2,a1[1]))
 
-                    a_max_aux=min((1+r)*grid_a[a_i]+ub-1e-6,a_max)
+                    a_max_aux=min((1+r)*grid_a0[a_i]+ub-1e-6,a_max)
                     if Veval_1(a_min)<Veval_1(a_min+1e-6)
                         pol_a_Uaux[ind,t]=a_min
                         V_Uaux[ind,t]=-Veval_1(a_min)

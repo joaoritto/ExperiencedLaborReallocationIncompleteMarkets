@@ -407,14 +407,14 @@ function GeneralEquilibrium(z)
         display(p)
         println("E=",Ed[1,:])
 
-        pol_val_functions=multigrid(nGrids_a,p)
-        (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+        pol_val_functions0=multigrid(nGrids_a,p)
+        (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions0
 
         grid_a=LinRange(a_min,a_max,nGrids_a[end])
         grids=(grid_beq,grid_o,grid_e,grid_a)
         if n_anew!=nGrids_a[end]
             grid_a=LinRange(a_min,a_max,n_anew)
-            pol_val_functions=transformVPolFunctions(pol_val_functions,grids,grid_a)
+            pol_val_functions=transformVPolFunctions(pol_val_functions0,grids,grid_a)
             (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
             grids=(grid_beq,grid_o,grid_e,grid_a)
         end
@@ -422,7 +422,7 @@ function GeneralEquilibrium(z)
         pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
 
         pol_functions=(pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,θ)
-        pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ)
+        pol_val_functions=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
 
         Φ,Tr=ComputeDistribution(grids,pol_functions)
         Y,Es,U=ComputeAggregates(grids,Φ,z)
@@ -448,5 +448,20 @@ function GeneralEquilibrium(z)
         end
     end
 
-    return pol_val_functions,Φ,Tr,Y,Es,U
+    grid_a=LinRange(a_min,a_max,nGrids_a[end])
+    grids=(grid_beq,grid_o,grid_e,grid_a)
+
+    V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,p;Guess=pol_val_functions0)
+    pol_val_functions0=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
+
+    grid_a=LinRange(a_min,a_max,n_anew)
+    pol_val_functions=transformVPolFunctions(pol_val_functions0,grids,grid_a)
+    (V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
+    grids=(grid_beq,grid_o,grid_e,grid_a)
+
+    pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
+
+    StatEq=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ,Y,Es,U)
+
+    return StatEq,Tr
 end

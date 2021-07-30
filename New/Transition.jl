@@ -20,7 +20,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
     shockdur=size(zt,2)
     ϵ=0.001
-    wupdate=0.2
+    wupdate=0.002
 
     if permanent==1
         (StatEq1,StatEq2)=StatEq
@@ -812,9 +812,9 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
         errors=zeros(T)
         for t in 1:T
-            errors[t]=maximum(abs.(E[t]-Eold[t])./Ess)
+            errors[t]=maximum(abs.(E[t]-Eold[t])./Eold[t])
         end
-        if maximum(errors)>error || iter>500
+        if maximum(errors)>error || iter>1000
             println("Solution was diverging")
             pol_val_results=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ)
             return Eold,U,pol_val_results
