@@ -18,7 +18,7 @@ include(path*"bisection_derivative.jl")
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
-PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
+PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
 small_grid=0
 comp_transition=0
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
@@ -62,12 +62,12 @@ end
 @everywhere z=2.0*ones(2) #n_o=2
 
 # Grids
-@everywhere n_beq=1
+@everywhere n_beq=3
 @everywhere n_o=2 # Should be equal to 2, because code is written for the case of 2 occupations, occupation 2 being large
 @everywhere n_e=4
 
-@everywhere grid_beq=[0.0]#;-190.0;-310.0]
-@everywhere weight_beq=[1.0]#0.28;0.56;0.16]
+@everywhere grid_beq=[0.0;-190.0;-310.0]
+@everywhere weight_beq=[0.28;0.56;0.16]
 
 @everywhere grid_o=1:n_o
 @everywhere grid_e=1:n_e
@@ -128,7 +128,7 @@ elseif PE==0
     pol_val_functions,Φ,Tr,Y,E,U=GeneralEquilibrium(z)
     (V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 end
-#=
+
 grid_a=LinRange(a_min,a_max,nGrids_a[end])
 grids=(grid_beq,grid_o,grid_e,grid_a)
 
@@ -245,7 +245,7 @@ if comp_transition==1
 
     shockdur=40
     zt=z*ones(1,shockdur+1)
-    zt[:,1]=[1.7;2.0]
+    zt[:,1]=[2.0;2.0]
     for t in 2:shockdur
         zt[:,t]=0.9*zt[:,t-1]+0.1*z
     end

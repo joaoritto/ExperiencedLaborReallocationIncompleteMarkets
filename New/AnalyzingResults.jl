@@ -41,7 +41,7 @@
     #---------------------------------------------------------------------------
     #  Mean wealth of workers in stationary equilibrium
     #---------------------------------------------------------------------------
-
+#=
     a_bar=zeros(n_o,n_e)
     aux=zeros(Int64,n_beq*n_a,1)
     for o_i in 1:n_o
@@ -55,7 +55,7 @@
         end
     end
     display(a_bar)
-
+=#
 
     #---------------------------------------------------------------------------
     #  Construct a wealth histogram in stationary equilibrium
