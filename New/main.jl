@@ -18,7 +18,7 @@ include(path*"bisection_derivative.jl")
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
-PE=1 # If set to 0, code runs the GE, if set to 1 it runs the PE
+PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
 small_grid=0
 comp_transition=0
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
@@ -31,15 +31,15 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere ρ=0.042 # Exogenous separation
 @everywhere δ=1/(45*6) # Death
 @everywhere α=[1/12;1/18;1/18;0] # Probability of being promoted
-@everywhere χ1=0.4
-@everywhere χ=[0;χ1;3/2*χ1;3/2*χ1] # Probability of losing skill
+@everywhere χ1=0.6
+@everywhere χ=[0;χ1;2/3*χ1;2/3*χ1] # Probability of losing skill
 @everywhere φ=0.955 # Portion of good paid to worker
 @everywhere b=0.45*φ # Replacement rate: Unemployment benefits; b*p > -̲a*r or c<0 at lowest wealth
 @everywhere σ_ϵ=0.06# s.d. of taste shocks
 @everywhere ξ=0.5 # Unemployed share in matching technology
 @everywhere m=0.5 # Productivity of matching technology
-@everywhere κ=0.136 # Vacancy cost
-@everywhere γ=[0.09668;0.19850;0.25172;0.45310] # Productivity share workers
+@everywhere κ=0.1482 # Vacancy cost
+@everywhere γ=[0.09592;0.14432;0.22198;0.53778] # Productivity share workers
 @everywhere ω=-1e-7 # Elasticity of substitution between worker types (CES prod function)
 @everywhere ν=3.0 # Elasticity of substitution between intermediate goods
 @everywhere λ_2=4.23
@@ -47,26 +47,27 @@ using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If se
 @everywhere O=200
 @everywhere ϕ=[1/(1+(O-1)^(1/ν));((O-1)^(1/ν))/(1+(O-1)^(1/ν))] #  weight of each occupation
 
-@everywhere p_low=0.379
+@everywhere p_low=0.40505
 
 @everywhere a_min=-9*p_low*φ
 @everywhere a_max=20.0
 
 # Prices
 if PE==1
-    @everywhere p=[1 1.089 1.2 1.279; 1 1.089 1.2 1.279]*p_low
+    #@everywhere p=[1 1.089 1.2 1.279; 1 1.089 1.2 1.279]*p_low
+    @everywhere p=[0.4075 0.4440 0.4886 0.5205; 0.4075 0.4440 0.4886 0.5205]
 end
 @everywhere r=0.04/6
 
 @everywhere z=2.0*ones(2) #n_o=2
 
 # Grids
-@everywhere n_beq=3
+@everywhere n_beq=1
 @everywhere n_o=2 # Should be equal to 2, because code is written for the case of 2 occupations, occupation 2 being large
 @everywhere n_e=4
 
-@everywhere grid_beq=[0.0;-190.0;-310.0]
-@everywhere weight_beq=[0.28;0.56;0.16]
+@everywhere grid_beq=[0.0]#;-190.0;-310.0]
+@everywhere weight_beq=[1.0]#0.28;0.56;0.16]
 
 @everywhere grid_o=1:n_o
 @everywhere grid_e=1:n_e
@@ -127,7 +128,7 @@ elseif PE==0
     pol_val_functions,Φ,Tr,Y,E,U=GeneralEquilibrium(z)
     (V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ)=pol_val_functions
 end
-
+#=
 grid_a=LinRange(a_min,a_max,nGrids_a[end])
 grids=(grid_beq,grid_o,grid_e,grid_a)
 
@@ -241,6 +242,13 @@ if comp_transition==1
 
     plot0=plot(1:T,Eplot',legend=false)
     display(plot0)
+
+    shockdur=40
+    zt=z*ones(1,shockdur+1)
+    zt[:,1]=[1.7;2.0]
+    for t in 2:shockdur
+        zt[:,t]=0.9*zt[:,t-1]+0.1*z
+    end
 
     NewE,NewU,pol_val_results=Transition(grids,StatEq,zt)#;Guess=Eold)
 

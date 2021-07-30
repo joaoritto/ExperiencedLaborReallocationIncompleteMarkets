@@ -20,7 +20,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
 
     shockdur=size(zt,2)
     ϵ=0.001
-    wupdate=0.002
+    wupdate=0.2
 
     if permanent==1
         (StatEq1,StatEq2)=StatEq
@@ -174,12 +174,12 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     for t in 1:T
         for o_i in 1:n_o
             for e_i in 1:n_e
-                Eplot[(o_i-1)*n_e+e_i,t]=Eold[t][o_i,e_i]
+                Eplot[(o_i-1)*n_e+e_i,t]=Eold[t][o_i,e_i]/Ess[o_i,e_i]
             end
         end
     end
 
-    plot0=plot(1:T,Eplot',legend=false)
+    plot0=plot(1:T,Eplot[1:4,:]',legend=false)
     display(plot0)
     iter=0
 
@@ -816,7 +816,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
         for t in 1:T
             errors[t]=maximum(abs.(E[t]-Eold[t])./Ess)
         end
-        if maximum(errors)>error || iter>300
+        if maximum(errors)>error || iter>500
             println("Solution was diverging")
             pol_val_results=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ)
             return Eold,U,pol_val_results
@@ -833,11 +833,11 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
         for t in 1:T
             for o_i in 1:n_o
                 for e_i in 1:n_e
-                    Eplot[(o_i-1)*n_e+e_i,t]=Eold[t][o_i,e_i]
+                    Eplot[(o_i-1)*n_e+e_i,t]=Eold[t][o_i,e_i]/Ess[o_i,e_i]
                 end
             end
         end
-        plot1=plot(1:T,Eplot',legend=false)
+        plot1=plot(1:T,Eplot[1:4,:]',legend=false)
         display(plot1)
     end
 
