@@ -373,6 +373,7 @@ function GeneralEquilibrium(z)
         0.00237116 + 5e-6]
 
     Es=zeros(n_e)
+    Ed=zeros(n_e)
     U=zeros(n_e)
     Y=false
     Φ=false
@@ -461,7 +462,7 @@ function GeneralEquilibrium(z)
 
     pol_a_Ei,pol_a_Ui=transformPola(pol_a_E,pol_a_U,grids)
 
-    StatEq=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ,Y,Es,U)
+    StatEq=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ,Y,Ed,U)
 
     return StatEq,Tr
 end

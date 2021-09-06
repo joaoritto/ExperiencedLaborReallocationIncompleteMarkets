@@ -3,7 +3,7 @@
 function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=200)
 
     (grid_beq,grid_o,grid_e,grid_a)=grids
-    grid_a0=LinRange(grid_a[1],grid_a[end],200)
+    grid_a0=LinRange(grid_a[1],grid_a[end],40)
     grids0=(grid_beq,grid_o,grid_e,grid_a0)
 
     @eval @everywhere grid_a=$grid_a
@@ -19,8 +19,8 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     @eval @everywhere n_a0=$n_a0
 
     shockdur=size(zt,2)
-    ϵ=0.001
-    wupdate=0.002
+    ϵ=0.1
+    wupdate=0.005
 
     if permanent==1
         (StatEq1,StatEq2)=StatEq
@@ -166,7 +166,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
     @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere P(θ)=min(m*θ^(1-ξ),1)
     @everywhere q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
-    @everywhere bequest(λ_1,λ_2,beq)=if beq>0.0 λ_1*(1+(beq/λ_2))^(1-σ) else λ_1 end
+    @everywhere bequest(λ_1,λ_2,beq)=λ_1*(1+((beq-a_min)/λ_2))^(1-σ)
 
     error=1000
 
@@ -790,17 +790,17 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
                 for e_i in 1:n_e
                     aux=0
                     for beq_i in 1:n_beq
-                        aux+=sum(Φ[(beq_i-1)*n_o*n_e*n_a+(o_i-1)*n_e*n_a+(e_i-1)*n_a+1:(beq_i-1)*n_o*n_e*n_a+(o_i-1)*n_e*n_a+e_i*n_a])
+                        aux+=sum(Φ[(beq_i-1)*n_o*n_e*n_a+(o_i-1)*n_e*n_a+(e_i-1)*n_a+1:(beq_i-1)*n_o*n_e*n_a+(o_i-1)*n_e*n_a+e_i*n_a,t+1])
                     end
                     E[t+1][o_i,e_i]=aux
                     aux2=0
                     if e_i==1
                         if o_i==1
-                            U[t+1][o_i,e_i]=sum(Φ[n_beq*n_o*n_e*n_a+1:n_beq*n_o*n_e*n_a+n_beq*n_a])
+                            U[t+1][o_i,e_i]=sum(Φ[n_beq*n_o*n_e*n_a+1:n_beq*n_o*n_e*n_a+n_beq*n_a,t+1])
                         end
                     else
                         for beq_i in 1:n_beq
-                            aux2+=sum(Φ[n_beq*n_o*n_e*n_a+n_beq*n_a+(beq_i-1)*n_o*(n_e-1)*n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+1:n_beq*n_o*n_e*n_a+n_beq*n_a+(beq_i-1)*n_o*(n_e-1)*n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a])
+                            aux2+=sum(Φ[n_beq*n_o*n_e*n_a+n_beq*n_a+(beq_i-1)*n_o*(n_e-1)*n_a+(o_i-1)*(n_e-1)*n_a+(e_i-2)*n_a+1:n_beq*n_o*n_e*n_a+n_beq*n_a+(beq_i-1)*n_o*(n_e-1)*n_a+(o_i-1)*(n_e-1)*n_a+(e_i-1)*n_a,t+1])
                         end
                         U[t+1][o_i,e_i]=aux2
                     end
@@ -814,7 +814,7 @@ function Transition(grids,StatEq,zt;Guess=false,permanent=0,i_shock=1,n_periods=
         for t in 1:T
             errors[t]=maximum(abs.(E[t]-Eold[t])./Eold[t])
         end
-        if maximum(errors)>error || iter>1000
+        if maximum(errors)>error || iter>300
             println("Solution was diverging")
             pol_val_results=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φ)
             return Eold,U,pol_val_results

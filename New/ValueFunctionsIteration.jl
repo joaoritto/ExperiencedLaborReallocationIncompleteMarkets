@@ -82,7 +82,6 @@ function ValueFunctions(grids,p;Guess=false,tol=false)
     @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere P(θ)=min(m*θ^(1-ξ),1)
     @everywhere q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
-    #@everywhere bequest(λ_1,λ_2,beq)=if beq>0.0 λ_1*(1+(beq/λ_2))^(1-σ) else λ_1 end
     @everywhere bequest(λ_1,λ_2,beq)=λ_1*(1+((beq-a_min)/λ_2))^(1-σ)
 
     error=1000

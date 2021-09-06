@@ -114,7 +114,6 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
     @everywhere u(c)=if c>0 (c^(1-σ)-1)/(1-σ) else -Inf end
     @everywhere P(θ)=min(m*θ^(1-ξ),1)
     @everywhere q_inv(y)=if y>1 0.0 elseif y<0 0.0 else (y/m)^(-1/ξ) end
-    #@everywhere bequest(λ_1,λ_2,beq)=if beq>0.0 λ_1*(1+(beq/λ_2))^(1-σ) else λ_1 end
     @everywhere bequest(λ_1,λ_2,beq)=λ_1*(1+((beq-a_min)/λ_2))^(1-σ)
 
     Jacobian=[[zeros(T,T) for i in 1:length(p)] for o in 1:length(Ess)]
@@ -500,7 +499,7 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
 
                             push!(i,ind)
                             push!(j,ind1_ud[beq1_i])
-                            push!(k,δ/n_beq)
+                            push!(k,δ*weight_beq[beq1_i])
                         end
 
                     elseif e_i<n_e
@@ -530,7 +529,7 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
 
                             push!(i,ind)
                             push!(j,ind1_ud[beq1_i])
-                            push!(k,δ/n_beq)
+                            push!(k,δ*weight_beq[beq1_i])
                         end
 
 
@@ -551,7 +550,7 @@ function SeqSpaceJacobian(grids,StatEq,p,Trss)
 
                             push!(i,ind)
                             push!(j,ind1_ud[beq1_i])
-                            push!(k,δ/n_beq)
+                            push!(k,δ*weight_beq[beq1_i])
                         end
                     end
 

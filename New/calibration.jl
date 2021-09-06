@@ -44,3 +44,73 @@ function quintile_w_to_y(grids,E,Dist_a,p)
 
     return w_to_y
 end
+
+
+function NewDistribution(grids,Φ)
+
+    (grid_beq,grid_o,grid_e,grid_a)=grids
+    nstates=length(Φ)
+
+    n_beq,n_o,n_e,n_a=length(grid_beq),length(grid_o),length(grid_e),length(grid_a)
+
+    @eval @everywhere n_beq=$n_beq
+    @eval @everywhere n_o=$n_o
+    @eval @everywhere n_e=$n_e
+    @eval @everywhere n_a=$n_a
+
+    nstates_E=n_beq*n_o*n_e*n_a
+    nstates_U=n_beq*(n_a+n_o*(n_e-1)*n_a)
+    nsvars_E=4
+    ngrids_vars_E=[n_beq,n_o,n_e,n_a]
+    nsvars_U=4
+    ngrids_vars_U=[n_beq,n_o,n_e-1,n_a]
+
+    statestogrid_E=zeros(Int64,nstates_E,nsvars_E)
+    for v in 1:nsvars_E
+        statestogrid_E[:,v]=kron(ones(prod(ngrids_vars_E[1:v-1]),1),kron(1:ngrids_vars_E[v],ones(prod(ngrids_vars_E[v+1:nsvars_E]),1)))
+    end
+
+    statestogrid_U=zeros(Int64,nstates_U,nsvars_U)
+    for beq_i in 1:n_beq
+        statestogrid_U[(beq_i-1)*n_a+1:beq_i*n_a,:]=hcat(beq_i*ones(n_a),ones(n_a,2),1:n_a)
+    end
+    for v in 1:nsvars_E
+        if v==3
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(2:ngrids_vars_U[v]+1,ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        else
+            statestogrid_U[n_beq*n_a+1:end,v]=kron(ones(prod(ngrids_vars_U[1:v-1]),1),kron(1:ngrids_vars_U[v],ones(prod(ngrids_vars_U[v+1:nsvars_U]),1)))
+        end
+    end
+
+    statestogrid=[hcat(ones(Int64,size(statestogrid_E,1),1),statestogrid_E);hcat(2*ones(Int64,size(statestogrid_U,1),1),statestogrid_U)]
+
+    @eval @everywhere statestogrid=$statestogrid
+    @eval @everywhere Φ=$Φ
+
+    Φnew=SharedArray{Float64}(nstates)
+
+    A=Φ'*kron(ones(div(nstates,n_a)),grid_a)
+
+    A_i=findmin(abs.(grid_a.-A))[2]
+
+    @sync @distributed for ind in 1:nstates
+        a_i=statestogrid[ind,5]
+        e_i=statestogrid[ind,4]
+        o_i=statestogrid[ind,3]
+        beq_i=statestogrid[ind,2]
+        s_i=statestogrid[ind,1]
+
+        if s_i==1
+            indnew=[beq_i-1,o_i-1,e_i-1,A_i]'*[n_o*n_e*n_a,n_e*n_a,n_a,1]
+        elseif s_i==2
+            if e_i==1
+                indnew=n_beq*n_o*n_e*n_a+(beq_i-1)*n_a+A_i
+            else
+                indnew=n_beq*n_o*n_e*n_a+n_beq*n_a+[beq_i-1,o_i-1,(e_i-1)-1,A_i]'*[n_o*(n_e-1)*n_a,(n_e-1)*n_a,n_a,1]
+            end
+        end
+
+        Φnew[indnew]+=Φ[ind]
+    end
+    return Φnew
+end

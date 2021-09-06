@@ -2,7 +2,7 @@
 
 using Distributed, SharedArrays
 
-addprocs(6-length(procs()))
+addprocs(4-length(procs()))
 
 path="C:\\Users\\joaor\\Dropbox\\Economics\\ThirdYearPaper\\Code\\ExperiencedLaborReallocationIncompleteMarkets\\New\\"
 cd(path)
@@ -14,13 +14,13 @@ include(path*"EarningsLoss.jl")
 include(path*"SeqSpaceJacobian.jl")
 include(path*"bisection_derivative.jl")
 
-@everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim,StatsBase,Distributions,JLD
+@everywhere using Statistics,LinearAlgebra,Plots,SparseArrays,Interpolations,Optim,StatsBase,Distributions#,JLD
 
 # Choices: i) Partial equilibrium or General Equilibrium, ii) Use multigrid?
 
 PE=0 # If set to 0, code runs the GE, if set to 1 it runs the PE
 small_grid=0
-comp_transition=0
+comp_transition=1
 using_multigrid=1 # If set to 0, code runs just once with n_a grid points. If set to 1 it starts with n_a and increases the grid
 
 # Calibration (1 period=2 months)
@@ -127,7 +127,7 @@ if PE==1
     grid_a=LinRange(a_min,a_max,nGrids_a[end])
     grids=(grid_beq,grid_o,grid_e,grid_a)
 
-    V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,p;Guess=pol_val_functions0)
+    V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ=ValueFunctions(grids,prices_result;Guess=pol_val_functions0)
     pol_val_functions0=(V_E,V_U,W_E,W_U,pol_a_E,pol_a_U,pol_σ_E,pol_σ_U,J,θ)
 
     grid_a=LinRange(a_min,a_max,n_anew)
@@ -158,6 +158,11 @@ for o_i in 1:n_o
     end
 end
 
+Φnew=NewDistribution(grids,Φ)
+
+StatEq=(V_E,V_U,W_E,W_U,pol_a_Ei,pol_a_Ui,pol_σ_E,pol_σ_U,J,θ,Φnew,Y,E,U)
+
+
 earningsloss,wageloss=EarningsLoss(grids,pol_functions,Tr,p)
 
 Jacobian=SeqSpaceJacobian(grids,StatEq,p,Tr)
@@ -173,6 +178,7 @@ dZ=zeros(n_o,200)
 dZ[:,1:shockdur+1]=zt.-z
 
 dU,dUdZ=ComputingdU(grids,StatEq,Jacobian,dZ)
+
 #=
 # simulate
 shock=rand(Normal(0,1),10000,2)
@@ -244,18 +250,17 @@ if comp_transition==1
         end
     end
 
-
     plot0=plot(1:T,Eplot',legend=false)
     display(plot0)
 
     shockdur=40
     zt=z*ones(1,shockdur+1)
-    zt[:,1]=[2.0;2.0]
+    zt[:,1]=[1.7;2.0]
     for t in 2:shockdur
         zt[:,t]=0.9*zt[:,t-1]+0.1*z
     end
 
-    NewE,NewU,pol_val_results=Transition(grids,StatEq,zt)#;Guess=Eold)
+    NewE,NewU,pol_val_results=Transition(grids,StatEq,zt;Guess=Eold)
 
     aggregates_transition=(NewE,NewU)
 
@@ -270,6 +275,33 @@ if comp_transition==1
 end
 
 
+pt=[zeros(n_o,n_e) for t=1:T]
+for t in 1:T
+    Y=0.0
+    y=zeros(n_o)
+    for o_i in 1:n_o
+        if t<shockdur
+            z_o=zt[o_i,t]
+        else
+            z_o=zt[o_i,end]
+        end
+        y[o_i]=z_o*sum(γ.*(Eold[t][o_i,:].^ω))^(1/ω)
+        Y+=ϕ[o_i]*y[o_i]^((ν-1)/ν)
+    end
+    Y=Y^(ν/(ν-1))
+
+    for o_i in 1:n_o
+        for e_i in 1:n_e
+            if t<shockdur
+                z_o=zt[o_i,t]
+            else
+                z_o=zt[o_i,end]
+            end
+            pt[t][o_i,e_i]=prices(ϕ[o_i],Y,z_o,Eold[t][o_i,:],e_i)
+        end
+    end
+end
+
 save(path*"results.jld", "StatEq", StatEq, "pol_val_results", pol_val_results,"NewE",NewE,"NewU",NewU)
 #StatEq=load(path*"results.jld", "StatEq")
 #pol_val_results=load(path*"results.jld", "pol_val_results")
@@ -277,6 +309,9 @@ save(path*"results.jld", "StatEq", StatEq, "pol_val_results", pol_val_results,"N
 #NewU=load(path*"results.jld", "NewU")
 
 #=
+plot(grid_a[1:100]/(6*φ*p[1,1]),pol_σ_U_Tr[4501:4600,1,1],legend=false,lc=[:black],ylabel="probability of searching in occupation 1",xlabel="wealth-to-earnings ratio")
+plot(P.(θ_Tr[4501,:]),title="2 years of tenure",legend=false,lc=[:black])
+
 
 #####################
 p1=plot(grid_a/(0.94*p[1,1]),pol_σ_U_Tr[1501:3000,1,1:3],title="2 years of tenure",label=["period 1" "period 2" "period 3"],linestyle=[:dash :dashdot :solid],lc=[:black :red :blue])
